@@ -4,6 +4,8 @@ namespace spezi
 {
     using BitBoard = uint64_t;
 
+    constexpr BitBoard EMPTY = 0;
+
     constexpr BitBoard A1 = 0x0000000000000001;
     constexpr BitBoard B1 = 0x0000000000000002;
     constexpr BitBoard C1 = 0x0000000000000004;
