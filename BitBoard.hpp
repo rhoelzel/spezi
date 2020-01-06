@@ -22,7 +22,6 @@ namespace spezi
     BitBoard G2 = 0x0000000000004000;
     BitBoard H2 = 0x0000000000008000;
 
-
     BitBoard A3 = 0x0000000000010000;
     BitBoard B3 = 0x0000000000020000;
     BitBoard C3 = 0x0000000000040000;
