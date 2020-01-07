@@ -77,6 +77,9 @@ namespace spezi
     constexpr BitBoard F8 = 0x2000000000000000;
     constexpr BitBoard G8 = 0x4000000000000000;
     constexpr BitBoard H8 = 0x8000000000000000;
+
+    constexpr BitBoard EDGES = A1|A2|A3|A4|A5|A6|A7|A8|B8|C8|D8|E8|F8|G8|H8|H7|H6|H5|H4|H3|H2|H1|G1|F1|E1|D1|C1|B1;
+    constexpr BitBoard INNER = ~EDGES;
 }
 
 
