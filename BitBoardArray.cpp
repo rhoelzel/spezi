@@ -1,7 +1,5 @@
 #include "BitBoardArray.hpp"
 
-#include <utility>
-
 namespace spezi
 {
     namespace
@@ -149,21 +147,15 @@ namespace spezi
         }
 
         auto constexpr AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
-
-        template <BitBoard bitBoardGenerator(Square const), Square... squares>
-        constexpr std::array<BitBoard, sizeof...(squares)> collect(std::integer_sequence<Square, squares...>)
-        {
-            return std::array<BitBoard, sizeof...(squares)> {bitBoardGenerator(squares)...};            
-        }
     }
 
-    BitBoardArray const Ranks = collect<rank>(AllSquares);
-    BitBoardArray const Files = collect<file>(AllSquares);
-    BitBoardArray const RanksAndFiles = collect<rankAndFile>(AllSquares);
-    BitBoardArray const Diagonals = collect<diagonals>(AllSquares);
+    BitBoardArray const Ranks = collectBitBoards<rank>(AllSquares);
+    BitBoardArray const Files = collectBitBoards<file>(AllSquares);
+    BitBoardArray const RanksAndFiles = collectBitBoards<rankAndFile>(AllSquares);
+    BitBoardArray const Diagonals = collectBitBoards<diagonals>(AllSquares);
 
-    BitBoardArray const KingMoveAttacks = collect<kingMoveAttack>(AllSquares);
-    BitBoardArray const RookMasks = collect<rookMask>(AllSquares);
-    BitBoardArray const BishopMasks = collect<bishopMask>(AllSquares);
-    BitBoardArray const KnightMoveAttacks = collect<knightMoveAttack>(AllSquares);
+    BitBoardArray const KingMoveAttacks = collectBitBoards<kingMoveAttack>(AllSquares);
+    BitBoardArray const RookMasks = collectBitBoards<rookMask>(AllSquares);
+    BitBoardArray const BishopMasks = collectBitBoards<bishopMask>(AllSquares);
+    BitBoardArray const KnightMoveAttacks = collectBitBoards<knightMoveAttack>(AllSquares);
 }

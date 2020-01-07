@@ -1,3 +1,5 @@
+#pragma once
+
 #include "BitBoard.hpp"
 
 namespace spezi
