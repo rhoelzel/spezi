@@ -8,7 +8,7 @@ namespace spezi
 {
     namespace
     {
-        constexpr int numberOfSetBits(BitBoard bitBoard)
+        int constexpr numberOfSetBits(BitBoard bitBoard)
         {
             for(int i = 0;i<NumberOfSquares;++i)
             {
@@ -21,11 +21,17 @@ namespace spezi
 
             return NumberOfSquares; 
         }
+        
+        auto constexpr UpperRight4x4 = std::integer_sequence
+        < Square,
+            e5, f5, g5, h5, 
+            e6, f6, g6, h6,
+            e7, f6, g7, h7,
+            e8, f8, g8, h8          
+        > {};
 
-        auto constexpr AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
+                
 
-
-        auto constexpr j = numberOfSetBits(0xFFFF00FF);
     }
 } 
     
