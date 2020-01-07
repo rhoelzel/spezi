@@ -20,10 +20,9 @@ void ppBitBoard(BitBoard b)
 
 int main()
 {
-/*    for(int i = 0; i< KingMoveAttacks.size();++i)
+    for(int i = 0; i< Diagonals.size();++i)
     {
-        ppBitBoard(KingMoveAttacks[i]);
-    }*/
+        ppBitBoard(Diagonals[i]);
+    }
 
-    ppBitBoard(INNER);
 }
