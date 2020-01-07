@@ -1,4 +1,4 @@
-#include "Attacks.hpp"
+#include "BitBoardArray.hpp"
 
 #include <utility>
 
@@ -84,6 +84,18 @@ namespace spezi
             return result;
         }
 
+        constexpr BitBoard rookMask(Square const square)
+        {
+            return ((rank(square) & ~FILES[0] & ~FILES[NumberOfFiles-1]) 
+                    | (file(square) & ~RANKS[0] & ~RANKS[NumberOfRanks-1]))
+                & (~toBitBoard(square));
+        }
+
+        constexpr BitBoard bishopMask(Square const square)
+        {
+            return diagonals(square) & INNER & (~toBitBoard(square));    
+        }
+
         constexpr BitBoard knightMoveAttack(Square const square)
         {
             auto result = toBitBoard(shift(square, -1, -2));  
@@ -136,7 +148,7 @@ namespace spezi
             return result;
         }
 
-        auto const AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
+        auto constexpr AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
 
         template <BitBoard bitBoardGenerator(Square const), Square... squares>
         constexpr std::array<BitBoard, sizeof...(squares)> collect(std::integer_sequence<Square, squares...>)
@@ -145,11 +157,13 @@ namespace spezi
         }
     }
 
-    std::array<BitBoard, NumberOfSquares> const Ranks = collect<rank>(AllSquares);
-    std::array<BitBoard, NumberOfSquares> const Files = collect<file>(AllSquares);
-    std::array<BitBoard, NumberOfSquares> const RanksAndFiles = collect<rankAndFile>(AllSquares);
-    std::array<BitBoard, NumberOfSquares> const Diagonals = collect<diagonals>(AllSquares);
+    BitBoardArray const Ranks = collect<rank>(AllSquares);
+    BitBoardArray const Files = collect<file>(AllSquares);
+    BitBoardArray const RanksAndFiles = collect<rankAndFile>(AllSquares);
+    BitBoardArray const Diagonals = collect<diagonals>(AllSquares);
 
-    std::array<BitBoard, NumberOfSquares> const KingMoveAttacks = collect<kingMoveAttack>(AllSquares);
-    std::array<BitBoard, NumberOfSquares> const KnightMoveAttacks = collect<knightMoveAttack>(AllSquares);
+    BitBoardArray const KingMoveAttacks = collect<kingMoveAttack>(AllSquares);
+    BitBoardArray const RookMasks = collect<rookMask>(AllSquares);
+    BitBoardArray const BishopMasks = collect<bishopMask>(AllSquares);
+    BitBoardArray const KnightMoveAttacks = collect<knightMoveAttack>(AllSquares);
 }

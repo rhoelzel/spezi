@@ -1,4 +1,4 @@
-#include "Attacks.hpp"
+#include "BitBoardArray.hpp"
 
 #include <iostream>
 
@@ -20,9 +20,9 @@ void ppBitBoard(BitBoard b)
 
 int main()
 {
-    for(int i = 0; i< Diagonals.size();++i)
+    for(int i = 0; i < RookMasks.size();++i)
     {
-        ppBitBoard(Diagonals[i]);
+        ppBitBoard(RookMasks[i]);
     }
 
 }
