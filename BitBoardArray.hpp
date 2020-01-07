@@ -1,15 +1,14 @@
 #pragma once
 
 #include "BitBoard.hpp"
-#include "Constants.hpp"
+
+#include "Common.hpp"
 
 #include <array>
 #include <utility>
 
 namespace spezi
 {  
-    using Square = int;
-
     using BitBoardArray = std::array<BitBoard, NumberOfSquares>;
 
     extern BitBoardArray const Ranks;

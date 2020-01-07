@@ -4,17 +4,17 @@ namespace spezi
 {
     namespace
     {
-        constexpr Square shift(Square const square, int8_t rankShift, int8_t fileShift)
+        constexpr Square shift(Square const square, int8_t const rankShift, int8_t const fileShift)
         {
-            if(square % NumberOfFiles + fileShift >= NumberOfFiles
-                || square % NumberOfFiles + fileShift < 0
-                || square / NumberOfRanks + rankShift >= NumberOfRanks
-                || square / NumberOfRanks + rankShift < 0)
+            if(square % SquaresPerFile + fileShift >= SquaresPerFile
+                || square % SquaresPerFile + fileShift < 0
+                || square / SquaresPerRank + rankShift >= SquaresPerRank
+                || square / SquaresPerRank + rankShift < 0)
             {
                 return -1;
             }
 
-            return square + NumberOfFiles*rankShift + fileShift;            
+            return square + SquaresPerFile*rankShift + fileShift;            
         }
 
         constexpr BitBoard toBitBoard(Square const square)
@@ -29,9 +29,9 @@ namespace spezi
         
         constexpr BitBoard rank(Square const square)
         {
-            auto const rank = square / NumberOfRanks;
+            auto const rank = square / SquaresPerRank;
 
-            auto result = A1 << (rank * NumberOfFiles);     // square on A file of same rank
+            auto result = A1 << (rank * SquaresPerFile);     // square on A file of same rank
             result |= (result << 1);                        // square on B file
             result |= (result << 2);                        // squares on C,D files 
             result |= (result << 4);                        // squares on E,F,G,H files
@@ -41,12 +41,12 @@ namespace spezi
 
         constexpr BitBoard file(Square const square)
         {
-            auto const file = square % NumberOfFiles; 
+            auto const file = square % SquaresPerFile; 
 
             auto result = A1 << file;                       // square on 1st rank of same file    
-            result |= (result << (1*NumberOfFiles));        // square on 2nd rank
-            result |= (result << (2*NumberOfFiles));        // squares on 3rd and 4th ranks 
-            result |= (result << (4*NumberOfFiles));        // squares on 5th through 8th ranks
+            result |= (result << (1*SquaresPerFile));        // square on 2nd rank
+            result |= (result << (2*SquaresPerFile));        // squares on 3rd and 4th ranks 
+            result |= (result << (4*SquaresPerFile));        // squares on 5th through 8th ranks
             
             return result;
         }
@@ -59,7 +59,7 @@ namespace spezi
         constexpr BitBoard diagonals(Square const square)
         {
             auto result = EMPTY;
-            for(int i = 1-NumberOfFiles; i < NumberOfFiles; ++i)
+            for(int i = 1-SquaresPerFile; i < SquaresPerFile; ++i)
             {
                 result |= toBitBoard(shift(square, i, i));
                 result |= toBitBoard(shift(square, -i, i));
@@ -84,8 +84,8 @@ namespace spezi
 
         constexpr BitBoard rookMask(Square const square)
         {
-            return ((rank(square) & ~FILES[0] & ~FILES[NumberOfFiles-1]) 
-                    | (file(square) & ~RANKS[0] & ~RANKS[NumberOfRanks-1]))
+            return ((rank(square) & ~FILES[0] & ~FILES[SquaresPerFile-1]) 
+                    | (file(square) & ~RANKS[0] & ~RANKS[SquaresPerRank-1]))
                 & (~toBitBoard(square));
         }
 
@@ -111,7 +111,7 @@ namespace spezi
         constexpr BitBoard whitePawnMove(Square const square)
         {
             auto result = toBitBoard(shift(square, 1, 0));
-            if(square < NumberOfFiles*2)
+            if(square < SquaresPerFile*2)
             {
                 result |= toBitBoard(shift(square, 2, 0));
             }
@@ -130,7 +130,7 @@ namespace spezi
         constexpr BitBoard blackPawnMove(Square const square)
         {
             auto result = toBitBoard(shift(square,-1, 0));
-            if(square >= NumberOfFiles*(NumberOfRanks-2))
+            if(square >= SquaresPerFile*(SquaresPerRank-2))
             {
                 result |= toBitBoard(shift(square, 2, 0));
             }

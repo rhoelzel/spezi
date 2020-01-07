@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Constants.hpp"
+#include "Common.hpp"
 
 #include <array>
 #include <cstdint>
@@ -83,7 +83,7 @@ namespace spezi
     constexpr BitBoard G8 = 0x4000000000000000;
     constexpr BitBoard H8 = 0x8000000000000000;
 
-    constexpr std::array<BitBoard, NumberOfFiles> RANKS = 
+    constexpr std::array<BitBoard, SquaresPerFile> RANKS = 
     {
         A1|B1|C1|D1|E1|F1|G1|H1,
         A2|B2|C2|D2|E2|F2|G2|H2,
@@ -95,7 +95,7 @@ namespace spezi
         A8|B8|C8|D8|E8|F8|G8|H8
     };
 
-    constexpr std::array<BitBoard, NumberOfFiles> FILES = 
+    constexpr std::array<BitBoard, SquaresPerRank> FILES = 
     {
         A1|A2|A3|A4|A5|A6|A7|A8,
         B1|B2|B3|B4|B5|B6|B7|B8,
