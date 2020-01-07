@@ -1,13 +1,12 @@
 #include "BitBoard.hpp"
+#include "Constants.hpp"
 
-#include <cstdint>
+#include <array>
 
 namespace spezi
-{
-    using Square = uint8_t;
+{  
+    using Square = int;
 
-    constexpr BitBoard kingAttack(Square square)
-    {
-
-    }
+    extern std::array<BitBoard, NumberOfSquares> const KingMoveAttacks;
+    extern std::array<BitBoard, NumberOfSquares> const KnightMoveAttacks;          
 }

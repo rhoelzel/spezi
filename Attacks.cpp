@@ -1,18 +1,17 @@
 #include "Attacks.hpp"
-#include "Constants.hpp"
+
+#include <utility>
 
 namespace spezi
 {
     namespace
     {
-        using Square = int;
-
         constexpr Square shift(Square const square, int8_t rankShift, int8_t fileShift)
         {
-            if(square >= NumberOfSquares
-                || square < 0
-                || square + rankShift*NumberOfFiles + fileShift >= NumberOfSquares
-                || square + rankShift*NumberOfFiles + fileShift < 0)
+            if(square % NumberOfFiles + fileShift >= NumberOfFiles
+                || square % NumberOfFiles + fileShift < 0
+                || square / NumberOfRanks + rankShift >= NumberOfRanks
+                || square / NumberOfRanks + rankShift < 0)
             {
                 return -1;
             }
@@ -26,10 +25,10 @@ namespace spezi
             {
                 return EMPTY;
             }
-            return 1 << square;
+            return A1 << square;
         }
         
-        constexpr BitBoard kingAttacks(Square const square)
+        constexpr BitBoard kingMoveAttack(Square const square)
         {
             auto result = toBitBoard(shift(square, -1, -1));  
             result |= toBitBoard(shift(square, -1, 0));  
@@ -42,7 +41,7 @@ namespace spezi
             return result;
         }
 
-        constexpr BitBoard knightAttacks(Square const square)
+        constexpr BitBoard knightMoveAttack(Square const square)
         {
             auto result = toBitBoard(shift(square, -1, -2));  
             result |= toBitBoard(shift(square, -2, -1));  
@@ -55,27 +54,49 @@ namespace spezi
             return result;
         }
 
-        constexpr BitBoard whitePawnMoves(Square const square)
+        constexpr BitBoard whitePawnMove(Square const square)
         {
             auto result = toBitBoard(shift(square, 1, 0));
+            if(square < NumberOfFiles*2)
+            {
+                result |= toBitBoard(shift(square, 2, 0));
+            }
+            return result;
         }
-        
-        constexpr BitBoard whitePawnAttacks(Square const square)
+
+        constexpr BitBoard whitePawnAttack(Square const square)
         {
             auto result = toBitBoard(shift(square, 1, -1));
             result |= toBitBoard(shift(square, 1, 1));
+            return result;
         }
 
-        constexpr BitBoard blackPawnMoves(Square const square)
+        constexpr BitBoard blackPawnMove(Square const square)
         {
             auto result = toBitBoard(shift(square,-1, 0));
+            if(square >= NumberOfFiles*(NumberOfRanks-2))
+            {
+                result |= toBitBoard(shift(square, 2, 0));
+            }
+            return result;
         }
 
-        constexpr BitBoard blackPawnAttacks(Square const square)
+        constexpr BitBoard blackPawnAttack(Square const square)
         {
             auto result = toBitBoard(shift(square, -1, -1));
             result |= toBitBoard(shift(square, -1, 1));
+            return result;
         }
 
+        auto const AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
+
+        template <BitBoard bitBoardGenerator(Square const), Square... squares>
+        constexpr std::array<BitBoard, sizeof...(squares)> collect(std::integer_sequence<Square, squares...>)
+        {
+            return std::array<BitBoard, sizeof...(squares)> {bitBoardGenerator(squares)...};            
+        }
     }
+
+    std::array<BitBoard, NumberOfSquares> const KingMoveAttacks = collect<kingMoveAttack>(AllSquares);
+    std::array<BitBoard, NumberOfSquares> const KnightMoveAttacks = collect<knightMoveAttack>(AllSquares);
 }
