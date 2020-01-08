@@ -22,7 +22,7 @@ int main()
 {
     for(int i = 0; i < RookMasks.size();++i)
     {
-        ppBitBoard(RookMasks[i]);
+        ppBitBoard(BlackPawnAttacks[i]);
     }
 
 }

@@ -6,20 +6,20 @@ namespace spezi
     {
         Square constexpr shift(Square const square, int8_t const rankShift, int8_t const fileShift)
         {
-            if(square % SquaresPerFile + fileShift >= SquaresPerFile
-                || square % SquaresPerFile + fileShift < 0
-                || square / SquaresPerRank + rankShift >= SquaresPerRank
-                || square / SquaresPerRank + rankShift < 0)
+            if(square % SquaresPerRank + fileShift >= SquaresPerRank
+                || square % SquaresPerRank + fileShift < 0
+                || square / SquaresPerFile + rankShift >= SquaresPerFile
+                || square / SquaresPerFile + rankShift < 0)
             {
                 return -1;
             }
 
-            return square + SquaresPerFile*rankShift + fileShift;            
+            return square + SquaresPerRank*rankShift + fileShift;            
         }
 
         BitBoard constexpr toBitBoard(Square const square)
         {
-            if(square < 0)
+            if(square < 0 || square >= NumberOfSquares)
             {
                 return EMPTY;
             }
@@ -29,9 +29,9 @@ namespace spezi
         
         BitBoard constexpr rank(Square const square)
         {
-            auto const rank = square / SquaresPerRank;
+            auto const rank = square / SquaresPerFile;
 
-            auto result = A1 << (rank * SquaresPerFile);     // square on A file of same rank
+            auto result = A1 << (rank * SquaresPerRank);    // square on A file of same rank
             result |= (result << 1);                        // square on B file
             result |= (result << 2);                        // squares on C,D files 
             result |= (result << 4);                        // squares on E,F,G,H files
@@ -41,12 +41,12 @@ namespace spezi
 
         BitBoard constexpr file(Square const square)
         {
-            auto const file = square % SquaresPerFile; 
+            auto const file = square % SquaresPerRank; 
 
             auto result = A1 << file;                       // square on 1st rank of same file    
-            result |= (result << (1*SquaresPerFile));        // square on 2nd rank
-            result |= (result << (2*SquaresPerFile));        // squares on 3rd and 4th ranks 
-            result |= (result << (4*SquaresPerFile));        // squares on 5th through 8th ranks
+            result |= (result << (1*SquaresPerRank));       // square on 2nd rank
+            result |= (result << (2*SquaresPerRank));       // squares on 3rd and 4th ranks 
+            result |= (result << (4*SquaresPerRank));       // squares on 5th through 8th ranks
             
             return result;
         }
@@ -56,7 +56,7 @@ namespace spezi
             return rank(square) | file(square);            
         }
 
-        constexpr BitBoard diagonals(Square const square)
+        BitBoard constexpr diagonals(Square const square)
         {
             auto result = EMPTY;
             for(int i = 1-SquaresPerFile; i < SquaresPerFile; ++i)
@@ -84,8 +84,8 @@ namespace spezi
 
         BitBoard constexpr rookMask(Square const square)
         {
-            return ((rank(square) & ~FILES[0] & ~FILES[SquaresPerFile-1]) 
-                    | (file(square) & ~RANKS[0] & ~RANKS[SquaresPerRank-1]))
+            return ((rank(square) & ~FILES[0] & ~FILES[SquaresPerRank-1]) 
+                    | (file(square) & ~RANKS[0] & ~RANKS[SquaresPerFile-1]))
                 & (~toBitBoard(square));
         }
 
@@ -111,12 +111,12 @@ namespace spezi
         BitBoard constexpr whitePawnMove(Square const square)
         {
             auto result = toBitBoard(shift(square, 1, 0));
-            if(square < SquaresPerFile*2)
+            if(square / SquaresPerRank == 1)
             {
                 result |= toBitBoard(shift(square, 2, 0));
             }
         
-            return result;
+            return result & ~RANKS[1];
         }
 
         BitBoard constexpr whitePawnAttack(Square const square)
@@ -124,18 +124,18 @@ namespace spezi
             auto result = toBitBoard(shift(square, 1, -1));
             result |= toBitBoard(shift(square, 1, 1));
         
-            return result;
+            return result & ~RANKS[1];
         }
 
         BitBoard constexpr blackPawnMove(Square const square)
         {
-            auto result = toBitBoard(shift(square,-1, 0));
-            if(square >= SquaresPerFile*(SquaresPerRank-2))
+            auto result = toBitBoard(shift(square, -1, 0));
+            if(square / SquaresPerRank == SquaresPerFile-2)
             {
-                result |= toBitBoard(shift(square, 2, 0));
+                result |= toBitBoard(shift(square, -2, 0));
             }
         
-            return result;
+            return result & ~RANKS[SquaresPerFile-2];
         }
 
         BitBoard constexpr blackPawnAttack(Square const square)
@@ -143,7 +143,7 @@ namespace spezi
             auto result = toBitBoard(shift(square, -1, -1));
             result |= toBitBoard(shift(square, -1, 1));
        
-            return result;
+            return result & ~RANKS[SquaresPerFile-2];
         }
 
         auto constexpr AllSquares = std::make_integer_sequence<Square, NumberOfSquares>{};
@@ -158,4 +158,8 @@ namespace spezi
     BitBoardArray const RookMasks = collectBitBoards<rookMask>(AllSquares);
     BitBoardArray const BishopMasks = collectBitBoards<bishopMask>(AllSquares);
     BitBoardArray const KnightMoveAttacks = collectBitBoards<knightMoveAttack>(AllSquares);
+    BitBoardArray const WhitePawnMoves = collectBitBoards<whitePawnMove>(AllSquares);
+    BitBoardArray const WhitePawnAttacks = collectBitBoards<whitePawnAttack>(AllSquares);
+    BitBoardArray const BlackPawnMoves = collectBitBoards<blackPawnMove>(AllSquares); 
+    BitBoardArray const BlackPawnAttacks = collectBitBoards<blackPawnAttack>(AllSquares);
 }

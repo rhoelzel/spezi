@@ -1,5 +1,6 @@
 #include "Magic.hpp"
 
+#include "BitBoardArray.hpp"
 #include "Common.hpp"
 
 #include <utility>
@@ -21,7 +22,7 @@ namespace spezi
 
             return NumberOfSquares; 
         }
-        
+
         auto constexpr UpperRight4x4 = std::integer_sequence
         < Square,
             e5, f5, g5, h5, 
@@ -29,9 +30,11 @@ namespace spezi
             e7, f6, g7, h7,
             e8, f8, g8, h8          
         > {};
+/*
+        template<Square square>
+        auto  myArray = std::array<Square, 1<<(numberOfSetBits(RookMasks[square]-1))>{};    
 
-                
-
+        auto const m = myArray<e5>;*/
     }
 } 
     

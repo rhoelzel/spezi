@@ -20,6 +20,10 @@ namespace spezi
     extern BitBoardArray const RookMasks;
     extern BitBoardArray const BishopMasks;
     extern BitBoardArray const KnightMoveAttacks;          
+    extern BitBoardArray const WhitePawnMoves;
+    extern BitBoardArray const WhitePawnAttacks;
+    extern BitBoardArray const BlackPawnMoves;
+    extern BitBoardArray const BlackPawnAttacks;
 
     template <BitBoard bitBoardGenerator(Square const), Square... squares>
     std::array<BitBoard, sizeof...(squares)> constexpr collectBitBoards(std::integer_sequence<Square, squares...>)
