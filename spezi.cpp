@@ -20,9 +20,9 @@ void ppBitBoard(BitBoard b)
 
 int main()
 {
-    for(int i = 0; i < RookMasks.size();++i)
+    for(size_t i = 0; i < RookMasks.size();++i)
     {
-        ppBitBoard(BlackPawnAttacks[i]);
+        ppBitBoard(KnightMoveAttacks[i]);
     }
 
 }

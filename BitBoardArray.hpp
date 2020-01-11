@@ -1,8 +1,8 @@
 #pragma once
 
 #include "BitBoard.hpp"
-
-#include "Common.hpp"
+#include "BitBoardArrayInternal.hpp"
+#include "Square.hpp"
 
 #include <array>
 #include <utility>
@@ -10,24 +10,18 @@
 namespace spezi
 {  
     using BitBoardArray = std::array<BitBoard, NumberOfSquares>;
-
-    extern BitBoardArray const Ranks;
-    extern BitBoardArray const Files;
-    extern BitBoardArray const RanksAndFiles;
-    extern BitBoardArray const Diagonals;
-
-    extern BitBoardArray const KingMoveAttacks;
-    extern BitBoardArray const RookMasks;
-    extern BitBoardArray const BishopMasks;
-    extern BitBoardArray const KnightMoveAttacks;          
-    extern BitBoardArray const WhitePawnMoves;
-    extern BitBoardArray const WhitePawnAttacks;
-    extern BitBoardArray const BlackPawnMoves;
-    extern BitBoardArray const BlackPawnAttacks;
-
-    template <BitBoard bitBoardGenerator(Square const), Square... squares>
-    std::array<BitBoard, sizeof...(squares)> constexpr collectBitBoards(std::integer_sequence<Square, squares...>)
-    {
-        return std::array<BitBoard, sizeof...(squares)> {bitBoardGenerator(squares)...};            
-    }
+  
+    BitBoardArray constexpr Ranks = bba_int::collectBitBoards<bba_int::rank>(bba_int::AllSquares);
+    BitBoardArray constexpr Files = bba_int::collectBitBoards<bba_int::file>(bba_int::AllSquares);
+    BitBoardArray constexpr RanksAndFiles = bba_int::collectBitBoards<bba_int::rankAndFile>(bba_int::AllSquares);
+    BitBoardArray constexpr Diagonals = bba_int::collectBitBoards<bba_int::diagonals>(bba_int::AllSquares);
+    BitBoardArray constexpr KingMoveAttacks = bba_int::collectBitBoards<bba_int::kingMoveAttack>(bba_int::AllSquares);
+    BitBoardArray constexpr RookMasks = bba_int::collectBitBoards<bba_int::rookMask>(bba_int::AllSquares);
+    BitBoardArray constexpr BishopMasks = bba_int::collectBitBoards<bba_int::bishopMask>(bba_int::AllSquares);
+    BitBoardArray constexpr KnightMoveAttacks = bba_int::collectBitBoards<bba_int::knightMoveAttack>(bba_int::AllSquares);
+    BitBoardArray constexpr WhitePawnMoves = bba_int::collectBitBoards<bba_int::whitePawnMove>(bba_int::AllSquares);
+    BitBoardArray constexpr WhitePawnAttacks = bba_int::collectBitBoards<bba_int::whitePawnAttack>(bba_int::AllSquares);
+    BitBoardArray constexpr BlackPawnMoves = bba_int::collectBitBoards<bba_int::blackPawnMove>(bba_int::AllSquares); 
+    BitBoardArray constexpr BlackPawnAttacks = bba_int::collectBitBoards<bba_int::blackPawnAttack>(bba_int::AllSquares);
+  
 }
