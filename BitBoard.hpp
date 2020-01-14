@@ -2,6 +2,8 @@
 
 #include "Square.hpp"
 
+#include <x86intrin.h>
+
 #include <array>
 #include <cstdint>
 
@@ -108,7 +110,7 @@ namespace spezi
         H1|H2|H3|H4|H5|H6|H7|H8
     };
 
-    std::array<BitBoard, NumberOfSquares> constexpr SQUARES =
+    std::array<BitBoard, NumberOfSquares + 1> constexpr SQUARES =
     {
         A1,B1,C1,D1,E1,F1,G1,H1,
         A2,B2,C2,D2,E2,F2,G2,H2,
@@ -117,32 +119,31 @@ namespace spezi
         A5,B5,C5,D5,E5,F5,G5,H5,
         A6,B6,C6,D6,E6,F6,G6,H6,
         A7,B7,C7,D7,E7,F7,G7,H7,
-        A8,B8,C8,D8,E8,F8,G8,H8
+        A8,B8,C8,D8,E8,F8,G8,H8,
+	EMPTY   //=SQUARES[NO_SQUARE]
      };
       
     BitBoard constexpr EDGES = A1|A2|A3|A4|A5|A6|A7|A8|B8|C8|D8|E8|F8|G8|H8|H7|H6|H5|H4|H3|H2|H1|G1|F1|E1|D1|C1|B1;
     BitBoard constexpr INNER = ~EDGES;
 
-    int constexpr getNumberOfSetBitsInBitBoard(BitBoard bitBoard)
+    BitBoard pdep(BitBoard const source, BitBoard const mask)
     {
-        for(int i = 0;i<NumberOfSquares;++i)
-        {
-            if(!bitBoard)
-            {
-                return i;
-            }
-            bitBoard &= (bitBoard-1);             
-        }
-        return NumberOfSquares; 
+        return _pdep_u64(source, mask);
     }
 
-  /*    int constexpr getFirstSetBitInBitBoard(BitBoard const bitBoard)
+    BitBoard pext(BitBoard const source, BitBoard const mask)
     {
-      for(int i = 0;i<NumberOfSquares;++i)
-	{
-	  if(bitBoard&
-	}
-	}*/
-}
+        return _pext_u64(source, mask);
+    }
+  
+    Square constexpr popcount(BitBoard bitBoard)
+    {
+        return __builtin_popcountll(bitBoard);
+    }
 
+    Square constexpr ffs(BitBoard const bitBoard)
+    {
+        return __builtin_ffsll(bitBoard)-1;
+    }
+}
 
