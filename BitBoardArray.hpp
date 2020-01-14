@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BitBoard.hpp"
+#include "Color.hpp"
 #include "Square.hpp"
 
 #include "BitBoardArrayDetail.hpp"
@@ -17,8 +18,19 @@ namespace spezi
     BitBoardArray constexpr Diagonals = detail::collectBitBoards(detail::diagonals);
     BitBoardArray constexpr KingMoveAttacks = detail::collectBitBoards(detail::kingMoveAttack);
     BitBoardArray constexpr KnightMoveAttacks = detail::collectBitBoards(detail::knightMoveAttack);
-    BitBoardArray constexpr WhitePawnMoves = detail::collectBitBoards(detail::whitePawnMove);
-    BitBoardArray constexpr WhitePawnAttacks = detail::collectBitBoards(detail::whitePawnAttack);
-    BitBoardArray constexpr BlackPawnMoves = detail::collectBitBoards(detail::blackPawnMove);
-    BitBoardArray constexpr BlackPawnAttacks = detail::collectBitBoards(detail::blackPawnAttack);
+    auto constexpr PawnMoves = std::array<BitBoardArray, NumberOfColors>
+    {
+        detail::collectBitBoards(detail::whitePawnMove),
+        detail::collectBitBoards(detail::blackPawnMove)
+    };
+    auto constexpr PawnDoubleMoves = std::array<BitBoardArray, NumberOfColors>
+    {
+        detail::collectBitBoards(detail::whitePawnDoubleMove),
+        detail::collectBitBoards(detail::blackPawnDoubleMove)
+    };
+    auto constexpr PawnAttacks = std::array<BitBoardArray, NumberOfColors>
+    {
+        detail::collectBitBoards(detail::whitePawnAttack),
+        detail::collectBitBoards(detail::blackPawnAttack)
+    };
 }
