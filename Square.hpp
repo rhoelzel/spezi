@@ -2,10 +2,11 @@
 
 #include <array>
 #include <utility>
+#include <cstdint>
 
 namespace spezi
 {
-    using Square = int;
+    using Square = int8_t;
     
     Square constexpr SquaresPerRank = 8;
     Square constexpr SquaresPerFile = 8;

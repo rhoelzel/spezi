@@ -22,13 +22,10 @@ int main()
 {
   for(size_t i = 0; i < KnightMoveAttacks.size();++i)
     {
-      std::cout<<detail::hihi[i]<<std::endl;
       ppBitBoard(detail::rookMask(i));
-	}
+	  }
 
-  std::cout<<detail::cache()*8<<std::endl;
 
-  /*
     
     ppBitBoard(detail::bishopOccupancy(a1,3));   
     ppBitBoard(detail::bishopMoveAttack(a1,3)); std::cout<<std::endl;  
@@ -46,6 +43,5 @@ int main()
     ppBitBoard(detail::bishopMoveAttack(a1,0b110101000000));      std::cout<<std::endl;
     ppBitBoard(detail::bishopOccupancy(a1,0b110000000000));
     ppBitBoard(detail::bishopMoveAttack(a1,0b110000000000));     std::cout<<std::endl;
-    
-  */
+
 }
