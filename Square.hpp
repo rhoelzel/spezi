@@ -77,7 +77,9 @@ namespace spezi
     Square constexpr h6 = 0x3D;
     Square constexpr h7 = 0x3E;
     Square constexpr h8 = 0x3F;
-    Square constexpr NO_SQUARE = 0x40;
+    
+    Square constexpr OFF_BOARD = 0x40;
+    Square constexpr NULL_SQUARE = -0x01;
 
     namespace Neighborhood
     {

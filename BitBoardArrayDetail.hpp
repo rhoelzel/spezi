@@ -6,12 +6,12 @@ namespace spezi::detail
   
     BitBoard constexpr rank(Square const square)
     {
-        return square == NO_SQUARE ? EMPTY : RANKS[square / SquaresPerFile];
+        return RANKS[square / SquaresPerFile];
     }
 
     BitBoard constexpr file(Square const square)
     {
-        return square == NO_SQUARE ? EMPTY : FILES[square % SquaresPerRank];
+        return FILES[square % SquaresPerRank];
     }
 
     BitBoard constexpr rankAndFile(Square const square)
@@ -21,21 +21,21 @@ namespace spezi::detail
 
     BitBoard constexpr ray(Square const square, Direction const direction, BitBoard const previous = EMPTY)
     {
-        if(square == NO_SQUARE)
+        if(square == OFF_BOARD)
         {
-	    return previous;
-	}	
-	return ray(Neighbors[square][direction], direction, previous | SQUARES[square]); 
+	        return previous;
+	    }	
+	    return ray(Neighbors[square][direction], direction, previous | SQUARES[square]); 
     }
   
     BitBoard constexpr diagonals(Square const square)
     {
         auto result = SQUARES[square];
-	for(auto const direction : BishopReachable)
-	{
-	    result |= ray(Neighbors[square][direction], direction); 
-	}
-	return result;    
+	    for(auto const direction : BishopReachable)
+	    {
+	        result |= ray(Neighbors[square][direction], direction); 
+	    }
+	    return result;    
     }
       
     BitBoard constexpr kingMoveAttack(Square const square)
@@ -68,7 +68,7 @@ namespace spezi::detail
     {
         return ((rank(square) & ~FILES[0] & ~FILES[SquaresPerRank-1]) 
                 | (file(square) & ~RANKS[0] & ~RANKS[SquaresPerFile-1]))
-            & (~SQUARES[square]);
+                & (~SQUARES[square]);
     }
   
     BitBoard constexpr rookOccupancy(Square const square, BitBoard const permutation)
@@ -81,7 +81,7 @@ namespace spezi::detail
         auto result = EMPTY;
 	    for(auto const direction : RookReachable)
 	    {
-            for(auto s = Neighbors[square][direction]; s != NO_SQUARE; s = Neighbors[s][direction])
+            for(auto s = Neighbors[square][direction]; s != OFF_BOARD; s = Neighbors[s][direction])
             {
 	        auto const next = SQUARES[s];
                 result |= next;
@@ -110,7 +110,7 @@ namespace spezi::detail
         auto result = EMPTY;
 	    for(auto const direction : BishopReachable)
 	    {
-            for(auto s = Neighbors[square][direction]; s != NO_SQUARE; s = Neighbors[s][direction])
+            for(auto s = Neighbors[square][direction]; s != OFF_BOARD; s = Neighbors[s][direction])
             {
 	            auto const next = SQUARES[s];
                 result |= next;
@@ -172,7 +172,7 @@ namespace spezi::detail
 
     auto constexpr collectBitBoards(BitBoard bitBoardGenerator(Square const))
     {
-        auto result = std::array<BitBoard, NumberOfSquares+1>{};
+        auto result = std::array<BitBoard, NumberOfSquares>{};
         for(Square s = 0;s<NumberOfSquares;++s)
         {
 	        result[s] = bitBoardGenerator(s);
@@ -182,7 +182,7 @@ namespace spezi::detail
 
     auto constexpr collectPermutations(BitBoard maskGenerator(Square const))
     {
-        auto result = std::array<BitBoard, NumberOfSquares+1>{};
+        auto result = std::array<BitBoard, NumberOfSquares>{};
         for(Square s = 0;s<NumberOfSquares;++s)
         {
 	        result[s] = SQUARES[popcount(maskGenerator(s))];

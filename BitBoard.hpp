@@ -120,7 +120,7 @@ namespace spezi
         A6,B6,C6,D6,E6,F6,G6,H6,
         A7,B7,C7,D7,E7,F7,G7,H7,
         A8,B8,C8,D8,E8,F8,G8,H8,
-	EMPTY   //=SQUARES[NO_SQUARE]
+	    EMPTY   //=SQUARES[OFF_BOARD]
      };
       
     BitBoard constexpr EDGES = A1|A2|A3|A4|A5|A6|A7|A8|B8|C8|D8|E8|F8|G8|H8|H7|H6|H5|H4|H3|H2|H1|G1|F1|E1|D1|C1|B1;
@@ -143,7 +143,8 @@ namespace spezi
 
     Square constexpr ffs(BitBoard const bitBoard)
     {
-        return __builtin_ffsll(bitBoard)-1;
+        // will return NULL_SQUARE for empty BitBoard
+        return NULL_SQUARE + __builtin_ffsll(bitBoard);
     }
 }
 

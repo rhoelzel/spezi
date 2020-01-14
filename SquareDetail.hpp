@@ -12,9 +12,9 @@ namespace spezi::detail
             || square % SquaresPerRank + fileShift < 0
             || square / SquaresPerFile + rankShift >= SquaresPerFile
             || square / SquaresPerFile + rankShift < 0
-	    || square == NO_SQUARE)
+	    || square == OFF_BOARD)
         {
-            return NO_SQUARE;
+            return OFF_BOARD;
         }
         return square + SquaresPerRank*rankShift + fileShift;            
     }
@@ -56,7 +56,7 @@ namespace spezi::detail
             case NNW:
                 return shiftSquare(square, 2, -1);
             default:
-                return NO_SQUARE;
+                return OFF_BOARD;
         }
     }
 
@@ -64,19 +64,19 @@ namespace spezi::detail
     {
         auto result = std::array<Square, NumberOfDirections>{};
         for(auto direction = 0; direction < NumberOfDirections; ++direction)
-	{
-	    result[direction] = getNeighbor(square, static_cast<Direction>(direction));            
-	}
-	return result;
+	    {
+	        result[direction] = getNeighbor(square, static_cast<Direction>(direction));            
+	    }
+	    return result;
     }
 
     auto constexpr collectNeighbors()
     {
         auto result = std::array< std::array<Square, NumberOfDirections>, NumberOfSquares + 1>{};
         for(Square square = 0; square < NumberOfSquares + 1 ; ++square)
-	{
-	    result[square] = collectNeighborsPerSquare(square);            
-	}
-	return result;
+	    {
+	        result[square] = collectNeighborsPerSquare(square);            
+	    }
+	    return result;
     }
 }

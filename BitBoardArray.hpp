@@ -10,7 +10,7 @@
 
 namespace spezi
 { 
-    using BitBoardArray = std::array<BitBoard, NumberOfSquares + 1>;
+    using BitBoardArray = std::array<BitBoard, NumberOfSquares>;
   
     BitBoardArray constexpr Ranks = detail::collectBitBoards(detail::rank);
     BitBoardArray constexpr Files = detail::collectBitBoards(detail::file);
