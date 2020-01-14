@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdint>
+#include <array>
+#include <utility>
 
 namespace spezi
 {
@@ -75,4 +76,44 @@ namespace spezi
     Square constexpr h6 = 0x3D;
     Square constexpr h7 = 0x3E;
     Square constexpr h8 = 0x3F;
+    Square constexpr NO_SQUARE = 0x40;
+
+    namespace Neighborhood
+    {
+        enum Direction
+        {
+            N = 0,
+            NNE = 1,
+            NE = 2,
+            ENE = 3, 
+            E = 4, 
+            ESE = 5,
+            SE = 6,
+            SSE = 7,
+            S = 8,
+            SSW = 9,
+            SW = 10,
+            WSW = 11,
+            W = 12,
+            WNW = 13,
+            NW = 14, 
+            NNW = 15
+        };
+
+        int constexpr NumberOfDirections = 16;
+
+        Direction constexpr KingQueenReachable[] = { N, NE, E, SE, S, SW, W, NW };
+        Direction constexpr RookReachable[] = { N, E, S, W };
+        Direction constexpr BishopReachable[] = { NE, SE, SW, NW };
+        Direction constexpr KnightReachable[] = { NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW };
+    };
+}
+
+#include "SquareDetail.hpp"
+
+namespace spezi
+{
+    using NeighborArray = std::array<std::array<Square, Neighborhood::NumberOfDirections>, NumberOfSquares + 1>;
+    
+    NeighborArray constexpr Neighbors = detail::collectNeighbors();
 }
