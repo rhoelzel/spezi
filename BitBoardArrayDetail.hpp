@@ -170,6 +170,8 @@ namespace spezi::detail
         return result & ~RANKS[SquaresPerFile-2];
     }
 
+    // from here on, collect BitBoards of individual squares into arrays
+
     auto constexpr collectBitBoards(BitBoard bitBoardGenerator(Square const))
     {
         auto result = std::array<BitBoard, NumberOfSquares>{};
@@ -180,13 +182,38 @@ namespace spezi::detail
         return result;
     }
 
-    auto constexpr collectPermutations(BitBoard maskGenerator(Square const))
+    int constexpr rookSharingIndex[NumberOfSquares] = 
     {
-        auto result = std::array<BitBoard, NumberOfSquares>{};
-        for(Square s = 0;s<NumberOfSquares;++s)
+        0,  1,  2,  3,  4,  5,  6,  7,
+        1,  0,  3,  2,  5,  4,  7,  6,
+        8,  9, 10, 11, 12, 13, 14, 15,
+        9,  8, 11, 10, 13, 12, 15, 14,
+       16, 17, 18, 19, 20, 21, 22, 23,
+       17, 16, 19, 18, 21, 20, 23, 22,
+       24, 25, 26, 27, 28, 29, 30, 31,
+       25, 24, 27, 26, 29, 28, 31, 30
+    };
+    int constexpr rookSharingFactor = 2;
+
+    int constexpr bishopSharingIndex[NumberOfSquares] = 
+    {
+        0,  2,  4,  4,  4,  4, 12, 14,
+        0,  2,  5,  5,  5,  5, 12, 14,
+        0,  2,  6,  6,  6,  6, 12, 14,
+        0,  2,  7,  7,  7,  7, 12, 14,
+        1,  3,  8,  8,  8,  8, 13, 15,
+        1,  3,  9,  9,  9,  9, 13, 15,
+        1,  3, 10, 10, 10, 10, 13, 15,
+        1,  3, 11, 11, 11, 11, 13, 15
+    };
+    int constexpr bishopSharingFactor = 4;
+
+   /* Bitboard constexpr condenseRookAttack(Square const square, BitBoard const permutation)
+    {
+        auto result = std::array<BitBoard, NumberOfSquares / rookSharingFactor>{};
+        for(Square s = 0; s < NumberOfSquares; ++s)
         {
-	        result[s] = SQUARES[popcount(maskGenerator(s))];
+            result[rookSharingIndex[square]] |= 
         }
-        return result;
-    }
+    }*/
 }
