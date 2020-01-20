@@ -172,7 +172,7 @@ namespace spezi::detail
 
     // from here on, collect BitBoards of individual squares into arrays
 
-    auto constexpr collectBitBoards(BitBoard bitBoardGenerator(Square const))
+    auto constexpr collectBitBoards(BitBoard bitBoardGenerator(Square))
     {
         auto result = std::array<BitBoard, NumberOfSquares>{};
         for(Square s = 0;s<NumberOfSquares;++s)
@@ -182,38 +182,68 @@ namespace spezi::detail
         return result;
     }
 
-    int constexpr rookSharingIndex[NumberOfSquares] = 
+    Square constexpr rookSharingSquares[NumberOfSquares + 1] = 
     {
-        0,  1,  2,  3,  4,  5,  6,  7,
-        1,  0,  3,  2,  5,  4,  7,  6,
-        8,  9, 10, 11, 12, 13, 14, 15,
-        9,  8, 11, 10, 13, 12, 15, 14,
-       16, 17, 18, 19, 20, 21, 22, 23,
-       17, 16, 19, 18, 21, 20, 23, 22,
-       24, 25, 26, 27, 28, 29, 30, 31,
-       25, 24, 27, 26, 29, 28, 31, 30
+        a1, b1, c1, d1, e1, f1, g1, h1,
+        b1, a1, d1, c1, f1, e1, h1, g1,
+        a3, b3, c3, d3, e3, f3, g3, h3,
+        b3, a3, d3, c3, f3, e3, h3, g3,
+        a5, b5, c5, d5, e5, f5, g5, h5,
+        b5, a5, d5, c5, f5, e5, h5, g5,
+        a7, b7, c7, d7, e7, f7, g7, h7,
+        b7, a7, d7, c7, f7, e7, h7, g7,
+        OFF_BOARD, // loop end moniker
     };
-    int constexpr rookSharingFactor = 2;
-
-    int constexpr bishopSharingIndex[NumberOfSquares] = 
+    
+    Square constexpr bishopSharingSquares[NumberOfSquares + 1] = 
     {
-        0,  2,  4,  4,  4,  4, 12, 14,
-        0,  2,  5,  5,  5,  5, 12, 14,
-        0,  2,  6,  6,  6,  6, 12, 14,
-        0,  2,  7,  7,  7,  7, 12, 14,
-        1,  3,  8,  8,  8,  8, 13, 15,
-        1,  3,  9,  9,  9,  9, 13, 15,
-        1,  3, 10, 10, 10, 10, 13, 15,
-        1,  3, 11, 11, 11, 11, 13, 15
+        a1, b1, c1, c1, c1, c1, g1, h1,
+        a1, b1, c2, c2, c2, c2, g1, h1,
+        a1, b1, c3, c3, c3, c3, g1, h1,
+        a1, b1, c4, c4, c4, c4, g1, h1,
+        a5, b5, c5, c5, c5, c5, g5, h5,
+        a5, b5, c6, c6, c6, c6, g5, h5,
+        a5, b5, c7, c7, c7, c7, g5, h5,
+        a5, b5, c8, c8, c8, c8, g5, h5,
+        OFF_BOARD, // loop end moniker
     };
-    int constexpr bishopSharingFactor = 4;
-
-   /* Bitboard constexpr condenseRookAttack(Square const square, BitBoard const permutation)
+    
+    auto constexpr collectOffsets(BitBoard maskGenerator(Square), Square const * const sharingSquares)
     {
-        auto result = std::array<BitBoard, NumberOfSquares / rookSharingFactor>{};
-        for(Square s = 0; s < NumberOfSquares; ++s)
+        auto offset = 0;
+        
+        std::array<BitBoard, NumberOfSquares + 1> result {};
+
+    	for(Square square = 0; square != OFF_BOARD; ++square)
+	    {
+            if(square == sharingSquares[square])
+            {
+                result[square] = offset;
+                offset += SQUARES[popcount(maskGenerator(square))];
+            }
+            else
+            {
+                result[square] = result[sharingSquares[square]];
+            }
+	    }
+	    
+    	result[OFF_BOARD] = offset;
+	    return result;
+    }
+
+    template<size_t N>
+    auto constexpr collectSharedAttackArrays(BitBoard attackGenerator(Square, BitBoard),
+        BitBoard maskGenerator(Square), std::array<BitBoard, NumberOfSquares + 1> const & offsets)
+    {
+        std::array<BitBoard, N> result {};
+        for(Square square = 0; square !=OFF_BOARD; ++square)
         {
-            result[rookSharingIndex[square]] |= 
-        }
-    }*/
+            auto const numberOfPermutations = popcount(maskGenerator(square));
+            for(BitBoard permutation = 0; permutation != numberOfPermutations; ++permutation)
+            {
+                result[offsets[square] + permutation] |= attackGenerator(square, permutation);
+            }
+        } 
+        return result;
+    }
 }

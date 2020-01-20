@@ -16,8 +16,19 @@ namespace spezi
     BitBoardArray constexpr Files = detail::collectBitBoards(detail::file);
     BitBoardArray constexpr RanksAndFiles = detail::collectBitBoards(detail::rankAndFile);
     BitBoardArray constexpr Diagonals = detail::collectBitBoards(detail::diagonals);
+
     BitBoardArray constexpr KingMoveAttacks = detail::collectBitBoards(detail::kingMoveAttack);
+
+    auto constexpr RookOffsets = detail::collectOffsets(detail::rookMask, detail::rookSharingSquares);
+    auto constexpr SharedRookAttacks = detail::collectSharedAttackArrays
+        <RookOffsets[OFF_BOARD]>(detail::rookMoveAttack, detail::rookMask, RookOffsets);
+
+    auto constexpr BishopOffsets = detail::collectOffsets(detail::bishopMask, detail::bishopSharingSquares);
+    auto constexpr SharedBishopAttacks = detail::collectSharedAttackArrays
+        <BishopOffsets[OFF_BOARD]>(detail::bishopMoveAttack, detail::bishopMask, BishopOffsets);
+    
     BitBoardArray constexpr KnightMoveAttacks = detail::collectBitBoards(detail::knightMoveAttack);
+
     auto constexpr PawnMoves = std::array<BitBoardArray, NumberOfColors>
     {
         detail::collectBitBoards(detail::whitePawnMove),
