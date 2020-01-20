@@ -2,14 +2,12 @@
 
 #include "Square.hpp"
 
-#include <x86intrin.h>
-
 #include <array>
 #include <cstdint>
 
 namespace spezi
 {
-    using BitBoard = uint64_t;
+    using BitBoard = uint_fast64_t;
 
     BitBoard constexpr EMPTY = 0;
 
@@ -126,16 +124,9 @@ namespace spezi
     BitBoard constexpr EDGES = A1|A2|A3|A4|A5|A6|A7|A8|B8|C8|D8|E8|F8|G8|H8|H7|H6|H5|H4|H3|H2|H1|G1|F1|E1|D1|C1|B1;
     BitBoard constexpr INNER = ~EDGES;
 
-    BitBoard pdep(BitBoard const source, BitBoard const mask)
-    {
-        return _pdep_u64(source, mask);
-    }
-
-    BitBoard pext(BitBoard const source, BitBoard const mask)
-    {
-        return _pext_u64(source, mask);
-    }
-  
+    BitBoard pdep(BitBoard const source, BitBoard const mask);
+    BitBoard pext(BitBoard const source, BitBoard const mask);
+      
     Square constexpr popcount(BitBoard bitBoard)
     {
         return __builtin_popcountll(bitBoard);
