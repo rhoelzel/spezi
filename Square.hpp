@@ -6,7 +6,7 @@
 
 namespace spezi
 {
-    using Square = int;
+    using Square = int_fast8_t;
     
     Square constexpr SquaresPerRank = 8;
     Square constexpr SquaresPerFile = 8;
