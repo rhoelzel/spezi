@@ -23,7 +23,7 @@ namespace spezi
     int isLegal(Position & position, MoveAddress nextMove)
     {
         Square const king = ffs(position.allPieces[color] & position.individualPieces[KING]);
-        auto constexpr other = color % NumberOfColors;
+        auto constexpr other = (color + 1) % NumberOfColors;
         BitBoard const from = a1 << nextMove[FROM];
         BitBoard const to = a1 << nextMove[TO];
 
@@ -41,8 +41,8 @@ namespace spezi
         return 1;
     }
 
-    template<Piece piece, Color color, bool captures, bool doubleStep = false>
-    MoveAddress generateRegularMoves(Position & position, MoveAddress nextMove)
+    template<Piece piece, Color color, bool doubleStep = false>
+    MoveAddress generateRegularMovesBy(Position & position, MoveAddress nextMove)
     {
         static_assert(
             piece != BISHOP && 
@@ -53,20 +53,11 @@ namespace spezi
         static_assert((piece == PAWN) | !doubleStep, "What do you mean, 'doubleStep = true'?");
 
         auto movers = position.allPieces[color] & position.individualPieces[piece];
-        
+        auto constexpr other = (color + 1) % NumberOfColors;
+
         if(!movers)
         {
             return nextMove;
-        }
-
-        BitBoard targetMask;
-        if constexpr(captures)
-        {
-                targetMask = position.allPieces[color % NumberOfColors];
-        }
-        else
-        {
-            targetMask = ~(position.allPieces[color] | position.allPieces[color % NumberOfColors]);
         }
 
         do
@@ -76,15 +67,15 @@ namespace spezi
             BitBoard targets;
             if constexpr(piece == PAWN)
             {
-                targets = PawnPushesAttacks<color, captures, doubleStep>[mover] & targetMask;        
+                targets = PawnPushesAttacks<color, false, doubleStep>[mover] & position.empty;        
             }
             else if constexpr(piece == KNIGHT)
             {
-                targets = KnightAttacks[mover] & targetMask;
+                targets = KnightAttacks[mover] & position.empty;
             }
             else
             {
-                targets = KingAttacks[mover] & targetMask;
+                targets = KingAttacks[mover] & position.empty;
             }
             
             while(targets)
@@ -102,9 +93,9 @@ namespace spezi
 
         return nextMove;
     }
-/*<
-    template<Piece piece, Color color, bool captures>
-    MoveAddress generateSlidingMoves(Position & position, MoveAddress nextMove)
+
+    template<Piece piece, Color color>
+    MoveAddress generateSlidingMovesBy(Position & position, MoveAddress nextMove)
     {
         static_assert(
             piece == BISHOP || 
@@ -116,37 +107,25 @@ namespace spezi
 
         if(!movers)
         {
-            return MoveAddress;
+            return nextMove;
         }
 
-        BitBoard targetMask;
-        if constexpr(captures)
-        {
-            targetMask = position.allPieces[color % NumberOfColors];
-        }
-        else
-        {
-            targetMask = ~(position.allPieces[color] | position.allPieces[color % NumberOfColors]);
-        }
-
-        while(movers)
+        do
         {
             auto const mover = ffs(movers);
             
             BitBoard targets {EMPTY};
             if constexpr(piece == ROOK || piece == QUEEN)
             {
-                targets =         
+                targets |= (RankAttacks[mover][pext(~position.empty, Ranks[mover])]
+                            | FileAttacks[mover][pext(~position.empty, Files[mover])])
+                            & position.empty;        
             }
-            if constexpr(piece = KNIGHT)
+            if constexpr(piece == BISHOP || piece == QUEEN)
             {
-                targets = KingAttacks[mover] & targetMask;
+                targets |= DiagonalAttacks[mover][pext(~position.empty, Diagonals[mover])] & position.empty;
             }
-            else
-            {
-                targets = KnightAttacks[mover] & targetMask;
-            }
-            
+                      
             while(targets)
             {
                 auto const target = ffs(targets);
@@ -154,12 +133,13 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = piece;
                 nextMove += isLegal<color>(position, nextMove);
-                targetss &= targets - 1;            
+                targets &= targets - 1;            
             }
             movers &= movers - 1;
         }
+        while(movers);
         return nextMove;
-    }*/
+    }
 
     MoveList allMoves(Position const & position, Color toMove);
 }
