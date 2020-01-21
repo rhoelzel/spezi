@@ -37,7 +37,6 @@ namespace spezi
         static_assert((piece == PAWN) | !doubleStep, "What do you mean, 'doubleStep = true'?");
 
         auto movers = position.allPieces[color] & position.individualPieces[piece];
-        auto constexpr other = (color + 1) % NumberOfColors;
 
         if(!movers)
         {
@@ -101,13 +100,13 @@ namespace spezi
             BitBoard targets {EMPTY};
             if constexpr(piece == ROOK || piece == QUEEN)
             {
-                targets |= (RankAttacks[mover][pext(~position.empty, Ranks[mover])]
-                            | FileAttacks[mover][pext(~position.empty, Files[mover])])
+                targets |= (RankAttacks[mover][pext(~position.empty, RankMasks[mover])]
+                            | FileAttacks[mover][pext(~position.empty, FileMasks[mover])])
                             & position.empty;        
             }
             if constexpr(piece == BISHOP || piece == QUEEN)
             {
-                targets |= DiagonalAttacks[mover][pext(~position.empty, Diagonals[mover])] & position.empty;
+                targets |= DiagonalAttacks[mover][pext(~position.empty, DiagonalMasks[mover])] & position.empty;
             }
                       
             while(targets)
@@ -125,7 +124,7 @@ namespace spezi
         return nextMove;
     }
 
-    MoveList allMoves(Position const & position, Color toMove);
+    MoveList allMoves(Position & position, Color toMove);
 
     void prettyPrint(MoveList const & moveList);
 }

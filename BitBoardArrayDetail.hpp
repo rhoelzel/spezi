@@ -121,10 +121,10 @@ namespace spezi::detail
 
     BitBoard constexpr diagonalAttack(Square const square, BitBoard const permutation)
     {
-        return slidingAttack<NE>(rankMask, square, permutation)
-                | slidingAttack<SE>(rankMask, square, permutation)
-                | slidingAttack<SW>(rankMask, square, permutation)
-                | slidingAttack<NW>(rankMask, square, permutation);
+        return slidingAttack<NE>(diagonalMask, square, permutation)
+                | slidingAttack<SE>(diagonalMask, square, permutation)
+                | slidingAttack<SW>(diagonalMask, square, permutation)
+                | slidingAttack<NW>(diagonalMask, square, permutation);
     }
 
     BitBoard constexpr knightAttack(Square const square)
@@ -229,9 +229,13 @@ namespace spezi::detail
     template<BitBoard bitBoardGenerator(Square, BitBoard)>
     auto constexpr collectBitBoards()
     {
-        // max permutations on d4 (diagonals) or a1 (ranks/files, need a corner)
+        // max permutations on d4 (9 for diagonals) or a1 (6 for ranks/files, need a corner)
         auto constexpr MaxNumberOfPermutations = 
-            std::max(popcount(bitBoardGenerator(d4, 0)), popcount(bitBoardGenerator(a1, 0)));
+            std::max
+            (
+                1 << (popcount(bitBoardGenerator(d4, 0)) - 4),  // ignore 4 edge squares
+                1 << (popcount(bitBoardGenerator(a1, 0)) - 1)   // ignore 1 edge square
+            );
         
         auto result = std::array<std::array<BitBoard, MaxNumberOfPermutations>, NumberOfSquares> {};
 
