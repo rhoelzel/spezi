@@ -6,7 +6,8 @@
 
 namespace spezi
 {
-    using Square = int_fast8_t;
+    // make life easier when shifting bits around => use 64bit
+    using Square = int_fast64_t;
     
     Square constexpr SquaresPerRank = 8;
     Square constexpr SquaresPerFile = 8;
@@ -107,6 +108,8 @@ namespace spezi
 
         Direction constexpr KingQueenReachable[] = { N, NE, E, SE, S, SW, W, NW };
         Direction constexpr RookReachable[] = { N, E, S, W };
+        Direction constexpr RankReachable[] = { E, W};
+        Direction constexpr FileReachable[] = { N, S};
         Direction constexpr BishopReachable[] = { NE, SE, SW, NW };
         Direction constexpr KnightReachable[] = { NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW };
     };

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 namespace spezi::detail
 {
     using namespace Neighborhood;
@@ -38,7 +40,7 @@ namespace spezi::detail
 	    return result;    
     }
       
-    BitBoard constexpr kingMoveAttack(Square const square)
+    BitBoard constexpr kingAttack(Square const square)
     {
         auto result = EMPTY;
 	    for(auto const direction : KingQueenReachable)
@@ -64,67 +66,68 @@ namespace spezi::detail
         return result;
     }
 
-    BitBoard constexpr rookMask(Square const square)
+    BitBoard constexpr rankMask(Square const square)
+    {               
+        return (rank(square) & ~FILES[0] & ~FILES[SquaresPerRank-1]) & ~SQUARES[square];
+    }
+
+    BitBoard constexpr fileMask(Square const square)
     {
-        return ((rank(square) & ~FILES[0] & ~FILES[SquaresPerRank-1]) 
-                | (file(square) & ~RANKS[0] & ~RANKS[SquaresPerFile-1]))
-                & (~SQUARES[square]);
+        return (file(square) & ~RANKS[0] & ~RANKS[SquaresPerFile-1]) & (~SQUARES[square]);
     }
   
-    BitBoard constexpr rookOccupancy(Square const square, BitBoard const permutation)
-    {
-        return pdep_slow(permutation, rookMask(square));
-    }
-
-    BitBoard constexpr rookMoveAttack(Square const square, BitBoard const permutation)
-    {
-        auto result = EMPTY;
-	    for(auto const direction : RookReachable)
-	    {
-            for(auto s = Neighbors[square][direction]; s != OFF_BOARD; s = Neighbors[s][direction])
-            {
-	        auto const next = SQUARES[s];
-                result |= next;
-     
-                if (next & rookOccupancy(square, permutation))
-                {
-                    break; // first blocker found
-                }
-            }
-	    }
-        return result;
-    }
-
-    BitBoard constexpr bishopMask(Square const square)
+    BitBoard constexpr diagonalMask(Square const square)
     {
         return diagonals(square) & INNER & (~SQUARES[square]);    
     }
-  
-    BitBoard constexpr bishopOccupancy(Square const square, BitBoard const permutation)
+
+    BitBoard constexpr maskOccupancy(BitBoard maskGenerator(Square), 
+        Square const square, BitBoard const permutation)
     {
-        return pdep_slow(permutation, bishopMask(square));
+        return pdep_slow(permutation, maskGenerator(square));
     }
 
-    BitBoard constexpr bishopMoveAttack(Square const square, BitBoard const permutation)
+    template<Neighborhood::Direction direction>
+    BitBoard constexpr slidingAttack(BitBoard maskGenerator(Square),
+        Square const square, BitBoard const permutation)
     {
         auto result = EMPTY;
-	    for(auto const direction : BishopReachable)
-	    {
-            for(auto s = Neighbors[square][direction]; s != OFF_BOARD; s = Neighbors[s][direction])
-            {
-	            auto const next = SQUARES[s];
-                result |= next;
+	    
+        for(auto s = Neighbors[square][direction]; s != OFF_BOARD; s = Neighbors[s][direction])
+        {
+	        auto const next = SQUARES[s];
+            result |= next;
      
-                if (next & bishopOccupancy(square, permutation))
-                {
-                    break; // first blocker found
-                }
+            if (next & maskOccupancy(maskGenerator, square, permutation))
+            {
+                break; // first blocker found
             }
 	    }
+
         return result;
     } 
-     
-    BitBoard constexpr knightMoveAttack(Square const square)
+
+    BitBoard constexpr rankAttack(Square const square, BitBoard const permutation)
+    {
+        return slidingAttack<E>(rankMask, square, permutation)
+                | slidingAttack<W>(rankMask, square, permutation);
+    }
+
+    BitBoard constexpr fileAttack(Square const square, BitBoard const permutation)
+    {
+        return slidingAttack<N>(fileMask, square, permutation)
+                | slidingAttack<S>(fileMask, square, permutation);
+    }
+
+    BitBoard constexpr diagonalAttack(Square const square, BitBoard const permutation)
+    {
+        return slidingAttack<NE>(rankMask, square, permutation)
+                | slidingAttack<SE>(rankMask, square, permutation)
+                | slidingAttack<SW>(rankMask, square, permutation)
+                | slidingAttack<NW>(rankMask, square, permutation);
+    }
+
+    BitBoard constexpr knightAttack(Square const square)
     {
         auto result = EMPTY;
 	    for(auto const direction : KnightReachable)
@@ -170,8 +173,49 @@ namespace spezi::detail
         return result & ~RANKS[SquaresPerFile-2];
     }
 
-    // from here on, collect BitBoards of individual squares into arrays
+    template<Color color, bool attack, bool doubleStep>
+    BitBoard constexpr pawnPushAttack(Square const square)
+    {
+        static_assert(doubleStep ^ attack, "cannot have double step pawn attacks");
+        if constexpr(color == WHITE)
+        {
+            if constexpr(attack)
+            {
+                return whitePawnAttack(square);
+            }
+            else
+            {
+                if constexpr(doubleStep)
+                {
+                    return whitePawnDoubleMove(square);
+                }
+                else
+                {
+                    return whitePawnMove(square);
+                }
+            }            
+        }
+        else
+        {
+            if constexpr(attack)
+            {
+                return blackPawnAttack(square);
+            }
+            else
+            {
+                if constexpr(doubleStep)
+                {
+                    return blackPawnDoubleMove(square);
+                }
+                else
+                {
+                    return blackPawnMove(square);
+                }
+            }
+        }
+    }
 
+    // from here on, collect BitBoards of individual squares into arrays
     auto constexpr collectBitBoards(BitBoard bitBoardGenerator(Square))
     {
         auto result = std::array<BitBoard, NumberOfSquares>{};
@@ -182,68 +226,22 @@ namespace spezi::detail
         return result;
     }
 
-    Square constexpr rookSharingSquares[NumberOfSquares + 1] = 
+    template<BitBoard bitBoardGenerator(Square, BitBoard)>
+    auto constexpr collectBitBoards()
     {
-        a1, b1, c1, d1, e1, f1, g1, h1,
-        b1, a1, d1, c1, f1, e1, h1, g1,
-        a3, b3, c3, d3, e3, f3, g3, h3,
-        b3, a3, d3, c3, f3, e3, h3, g3,
-        a5, b5, c5, d5, e5, f5, g5, h5,
-        b5, a5, d5, c5, f5, e5, h5, g5,
-        a7, b7, c7, d7, e7, f7, g7, h7,
-        b7, a7, d7, c7, f7, e7, h7, g7,
-        OFF_BOARD, // loop end moniker
-    };
-    
-    Square constexpr bishopSharingSquares[NumberOfSquares + 1] = 
-    {
-        a1, b1, c1, c1, c1, c1, g1, h1,
-        a1, b1, c2, c2, c2, c2, g1, h1,
-        a1, b1, c3, c3, c3, c3, g1, h1,
-        a1, b1, c4, c4, c4, c4, g1, h1,
-        a5, b5, c5, c5, c5, c5, g5, h5,
-        a5, b5, c6, c6, c6, c6, g5, h5,
-        a5, b5, c7, c7, c7, c7, g5, h5,
-        a5, b5, c8, c8, c8, c8, g5, h5,
-        OFF_BOARD, // loop end moniker
-    };
-    
-    auto constexpr collectOffsets(BitBoard maskGenerator(Square), Square const * const sharingSquares)
-    {
-        auto offset = 0;
+        // max permutations on d4 (diagonals) or a1 (ranks/files, need a corner)
+        auto constexpr MaxNumberOfPermutations = 
+            std::max(popcount(bitBoardGenerator(d4, 0)), popcount(bitBoardGenerator(a1, 0)));
         
-        std::array<BitBoard, NumberOfSquares + 1> result {};
+        auto result = std::array<std::array<BitBoard, MaxNumberOfPermutations>, NumberOfSquares> {};
 
-    	for(Square square = 0; square != OFF_BOARD; ++square)
-	    {
-            if(square == sharingSquares[square])
-            {
-                result[square] = offset;
-                offset += SQUARES[popcount(maskGenerator(square))];
-            }
-            else
-            {
-                result[square] = result[sharingSquares[square]];
-            }
-	    }
-	    
-    	result[OFF_BOARD] = offset;
-	    return result;
-    }
-
-    template<size_t N>
-    auto constexpr collectSharedAttackArrays(BitBoard attackGenerator(Square, BitBoard),
-        BitBoard maskGenerator(Square), std::array<BitBoard, NumberOfSquares + 1> const & offsets)
-    {
-        std::array<BitBoard, N> result {};
-        for(Square square = 0; square !=OFF_BOARD; ++square)
+        for(Square s = 0;s < NumberOfSquares; ++s)
         {
-            auto const numberOfPermutations = popcount(maskGenerator(square));
-            for(BitBoard permutation = 0; permutation != numberOfPermutations; ++permutation)
+            for(BitBoard p = 0; p < MaxNumberOfPermutations; ++p)
             {
-                result[offsets[square] + permutation] |= attackGenerator(square, permutation);
+	            result[s][p] = bitBoardGenerator(s,p);
             }
-        } 
+        }
         return result;
     }
 }

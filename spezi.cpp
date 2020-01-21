@@ -20,28 +20,5 @@ void ppBitBoard(BitBoard b)
 
 int main()
 {
-  for(size_t i = 0; i < KnightMoveAttacks.size();++i)
-    {
-      ppBitBoard(detail::rookMask(i));
-	  }
-
-
     
-    ppBitBoard(detail::bishopOccupancy(a1,3));   
-    ppBitBoard(detail::bishopMoveAttack(a1,3)); std::cout<<std::endl;  
-    ppBitBoard(detail::bishopOccupancy(a1,2));   
-    ppBitBoard(detail::bishopMoveAttack(a1,2));   std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(a1,4));   
-    ppBitBoard(detail::bishopMoveAttack(a1,4));   std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(a1,7));   
-    ppBitBoard(detail::bishopMoveAttack(a1,7));   std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(a1,8));   
-    ppBitBoard(detail::bishopMoveAttack(a1,8));   std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(d4,0));   
-    ppBitBoard(detail::bishopMoveAttack(d4,0));   std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(a1,0b110101000000));
-    ppBitBoard(detail::bishopMoveAttack(a1,0b110101000000));      std::cout<<std::endl;
-    ppBitBoard(detail::bishopOccupancy(a1,0b110000000000));
-    ppBitBoard(detail::bishopMoveAttack(a1,0b110000000000));     std::cout<<std::endl;
-
 }

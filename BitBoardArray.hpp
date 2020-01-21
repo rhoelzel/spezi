@@ -17,31 +17,12 @@ namespace spezi
     BitBoardArray constexpr RanksAndFiles = detail::collectBitBoards(detail::rankAndFile);
     BitBoardArray constexpr Diagonals = detail::collectBitBoards(detail::diagonals);
 
-    BitBoardArray constexpr KingMoveAttacks = detail::collectBitBoards(detail::kingMoveAttack);
-
-    auto constexpr RookOffsets = detail::collectOffsets(detail::rookMask, detail::rookSharingSquares);
-    auto constexpr SharedRookAttacks = detail::collectSharedAttackArrays
-        <RookOffsets[OFF_BOARD]>(detail::rookMoveAttack, detail::rookMask, RookOffsets);
-
-    auto constexpr BishopOffsets = detail::collectOffsets(detail::bishopMask, detail::bishopSharingSquares);
-    auto constexpr SharedBishopAttacks = detail::collectSharedAttackArrays
-        <BishopOffsets[OFF_BOARD]>(detail::bishopMoveAttack, detail::bishopMask, BishopOffsets);
-    
-    BitBoardArray constexpr KnightMoveAttacks = detail::collectBitBoards(detail::knightMoveAttack);
-
-    auto constexpr PawnMoves = std::array<BitBoardArray, NumberOfColors>
-    {
-        detail::collectBitBoards(detail::whitePawnMove),
-        detail::collectBitBoards(detail::blackPawnMove)
-    };
-    auto constexpr PawnDoubleMoves = std::array<BitBoardArray, NumberOfColors>
-    {
-        detail::collectBitBoards(detail::whitePawnDoubleMove),
-        detail::collectBitBoards(detail::blackPawnDoubleMove)
-    };
-    auto constexpr PawnAttacks = std::array<BitBoardArray, NumberOfColors>
-    {
-        detail::collectBitBoards(detail::whitePawnAttack),
-        detail::collectBitBoards(detail::blackPawnAttack)
-    };
+    BitBoardArray constexpr KingAttacks = detail::collectBitBoards(detail::kingAttack);
+    auto constexpr RankAttacks = detail::collectBitBoards<detail::rankAttack>();
+    auto constexpr FileAttacks = detail::collectBitBoards<detail::fileAttack>();
+    auto constexpr DiagonalAttacks = detail::collectBitBoards<detail::diagonalAttack>();    
+    BitBoardArray constexpr KnightAttacks = detail::collectBitBoards(detail::knightAttack);
+    template<Color color, bool attacks, bool doubleStep = false> 
+    auto constexpr PawnPushesAttacks = 
+        detail::collectBitBoards(detail::pawnPushAttack<color, attacks, doubleStep>);
 }
