@@ -137,5 +137,7 @@ namespace spezi
         // will return NULL_SQUARE for empty BitBoard
         return NULL_SQUARE + __builtin_ffsll(bitBoard);
     }
+
+    void prettyPrint(BitBoard bitBoard);
 }
 

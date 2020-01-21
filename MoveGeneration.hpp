@@ -20,25 +20,9 @@ namespace spezi
     auto constexpr PIECE = 2;
 
     template<Color color>
-    int isLegal(Position & position, MoveAddress nextMove)
+    int isLegal(Position & /* position */, MoveAddress /* nextMove */)
     {
-        Square const king = ffs(position.allPieces[color] & position.individualPieces[KING]);
-        auto constexpr other = (color + 1) % NumberOfColors;
-        BitBoard const from = a1 << nextMove[FROM];
-        BitBoard const to = a1 << nextMove[TO];
-
-        position.allPieces[color]^=from;
-        position.allPieces[color]^=to;
-        BitBoard const backupOther = position.allPieces[other];
-        position.allPieces[other]&=~to;
-
-        if((PawnPushesAttacks<color, true, false>[king] & position.allPieces[other] & position.individualPieces[PAWN])
-            || (KnightAttacks[king] & position.allPieces[other] & position.individualPieces[KNIGHT]))
-        {
-                return 0;
-        }
-                
-        return 1;
+        return 3;
     }
 
     template<Piece piece, Color color, bool doubleStep = false>
@@ -142,4 +126,6 @@ namespace spezi
     }
 
     MoveList allMoves(Position const & position, Color toMove);
+
+    void prettyPrint(MoveList const & moveList);
 }

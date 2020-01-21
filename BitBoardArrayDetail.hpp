@@ -176,7 +176,7 @@ namespace spezi::detail
     template<Color color, bool attack, bool doubleStep>
     BitBoard constexpr pawnPushAttack(Square const square)
     {
-        static_assert(doubleStep ^ attack, "cannot have double step pawn attacks");
+        static_assert(~(doubleStep & attack), "cannot have double step pawn attacks");
         if constexpr(color == WHITE)
         {
             if constexpr(attack)

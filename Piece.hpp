@@ -14,5 +14,15 @@ namespace spezi
         KING = 5
     };
 
+    char const * const PieceTags[] =
+    {
+        "",
+        "N",
+        "B",
+        "R",
+        "Q",
+        "K"
+    };
+
     auto constexpr NumberOfPieceTypes = 6;
 }
