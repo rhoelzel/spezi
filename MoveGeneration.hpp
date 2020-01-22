@@ -23,23 +23,45 @@ namespace spezi
     using MoveList = std::array<Square, MaxMoveNumber * MoveSize>;
     using MoveAddress = Square *;
 
+    enum MoveType
+    {
+        NON_CAPTURE,
+        CAPTURE
+    };
 
-    template<Color color>
+    template<Color color, MoveType moveType>
+    constexpr void move(Position & position, MoveAddress const move)
+    {
+        auto const from = A1 << move[FROM];
+        auto const to = A1 << move[TO];
+        auto const fromTo = from ^ to;
+
+        position.allPieces[color] ^= fromTo;    
+        position.individualPieces[move[PIECE]] ^= fromTo;           
+        
+        if constexpr(moveType == NON_CAPTURE)
+        {
+            position.empty ^= fromTo;    
+        }
+        else
+        {
+            position.allPieces[(color + 1) % NumberOfColors] ^= to;         
+            position.individualPieces[move[CAPTURED]] ^= to;
+            position.empty ^= from;             
+        }
+    }
+
+    template<Color color, MoveType moveType>
+    auto constexpr unmove = move<color, moveType>;
+
+    template<Color color, MoveType moveType>
     MoveAddress advanceMoveListIfLegal(Position & position, MoveAddress nextMove)
     {
-        auto const fromSquare = SQUARES[nextMove[FROM]];
-        auto const toSquare = SQUARES[nextMove[TO]];
         auto constexpr other = (color + 1) % NumberOfColors;
-        
-        auto const backup1 = position.allPieces[color];
-        auto const backup2 = position.allPieces[other];
-        position.allPieces[color] ^= (fromSquare | toSquare);
-        position.allPieces[other] &= ~toSquare;
-        position.empty &= ~fromSquare;
-        position.empty |= ~toSquare;
 
-        auto king = ffs(position.allPieces[color] & position.individualPieces[KING]);
-                 
+        move<color, moveType>(position, nextMove); 
+
+        auto const king = ffs(position.allPieces[color] & position.individualPieces[KING]);
         auto isIllegal = 
             (PawnAttacks<color>[king] & position.allPieces[other] & position.individualPieces[PAWN]) 
             | (KnightAttacks[king] & position.allPieces[other] & position.individualPieces[KNIGHT])
@@ -50,12 +72,16 @@ namespace spezi
                 | FileAttacks[king][pext(~position.empty, FileMasks[king])])
                 & position.allPieces[other]) & (position.individualPieces[ROOK] | position.individualPieces[QUEEN]));
 
-        position.allPieces[color] = backup1;
-        position.allPieces[other] = backup2;
-        position.empty = ~(backup1 | backup2);
+        unmove<color, moveType>(position, nextMove);
 
         if(!isIllegal)
         {
+            if constexpr(moveType == NON_CAPTURE)
+            {
+                // keep track of non capture moves; only used for pretty printing 
+                // (abuses the fact that kings are never captured)
+                nextMove[CAPTURED] = KING;
+            }
             nextMove += MoveSize;
         }
 
@@ -106,8 +132,7 @@ namespace spezi
                 nextMove[FROM] = mover;
                 nextMove[TO] = target;
                 nextMove[PIECE] = piece;
-                nextMove[CAPTURED] = KING;  // abuse the fact that kings are never captured
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, NON_CAPTURE>(position, nextMove);
                 targets &= targets - 1;            
             }
             movers &= movers - 1;
@@ -149,8 +174,7 @@ namespace spezi
                 nextMove[FROM] = mover;
                 nextMove[TO] = target;
                 nextMove[PIECE] = piece;
-                nextMove[CAPTURED] = KING;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, NON_CAPTURE>(position, nextMove);
                 targets &= targets - 1;            
             }
             movers &= movers - 1;
@@ -181,7 +205,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = PAWN;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -197,7 +221,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = KNIGHT;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -214,7 +238,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = BISHOP;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -232,7 +256,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = ROOK;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -246,7 +270,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = QUEEN;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -262,7 +286,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = KING;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
