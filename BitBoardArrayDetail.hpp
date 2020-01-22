@@ -151,14 +151,14 @@ namespace spezi::detail
 
     BitBoard constexpr whitePawnAttack(Square const square)
     {
-        auto result = SQUARES[Neighbors[square][NW]] | SQUARES[Neighbors[square][NE]];
-        return result & ~RANKS[1];
+        // note: return attacks from first rank (for reverse attack generation)
+        return SQUARES[Neighbors[square][NW]] | SQUARES[Neighbors[square][NE]];   
     }
 
     BitBoard constexpr blackPawnMove(Square const square)
     {
         auto result = SQUARES[Neighbors[square][S]];
-        return result & ~RANKS[SquaresPerFile-2];
+        return result & ~RANKS[SquaresPerRank - 2];
     }
 
     BitBoard constexpr blackPawnDoubleMove(Square const square)
@@ -169,8 +169,8 @@ namespace spezi::detail
     
     BitBoard constexpr blackPawnAttack(Square const square)
     {
-        auto result = SQUARES[Neighbors[square][SW]] | SQUARES[Neighbors[square][SE]];
-        return result & ~RANKS[SquaresPerFile-2];
+        // note: return attacks from last rank (for reverse attack generation)
+        return SQUARES[Neighbors[square][SW]] | SQUARES[Neighbors[square][SE]];    
     }
 
     template<Color color, bool attack, bool doubleStep>
