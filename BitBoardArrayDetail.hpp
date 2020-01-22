@@ -136,35 +136,11 @@ namespace spezi::detail
 	    }
 	    return result;    
     }
-
-    BitBoard constexpr whitePawnMove(Square const square)
-    {
-        auto result = SQUARES[Neighbors[square][N]];
-        return result & ~RANKS[1];
-    }
-
-    BitBoard constexpr whitePawnDoubleMove(Square const square)
-    {
-        auto result = SQUARES[Neighbors[Neighbors[square][N]][N]];
-        return result & RANKS[3];
-    }
-
+    
     BitBoard constexpr whitePawnAttack(Square const square)
     {
         // note: return attacks from first rank (for reverse attack generation)
         return SQUARES[Neighbors[square][NW]] | SQUARES[Neighbors[square][NE]];   
-    }
-
-    BitBoard constexpr blackPawnMove(Square const square)
-    {
-        auto result = SQUARES[Neighbors[square][S]];
-        return result & ~RANKS[SquaresPerRank - 2];
-    }
-
-    BitBoard constexpr blackPawnDoubleMove(Square const square)
-    {
-        auto result = SQUARES[Neighbors[Neighbors[square][S]][S]];
-        return result & RANKS[4];
     }
     
     BitBoard constexpr blackPawnAttack(Square const square)
@@ -173,45 +149,41 @@ namespace spezi::detail
         return SQUARES[Neighbors[square][SW]] | SQUARES[Neighbors[square][SE]];    
     }
 
-    template<Color color, bool attack, bool doubleStep>
-    BitBoard constexpr pawnPushAttack(Square const square)
+    template<Color color>
+    BitBoard constexpr pawnAttack(Square const square)
     {
-        static_assert(~(doubleStep & attack), "cannot have double step pawn attacks");
         if constexpr(color == WHITE)
         {
-            if constexpr(attack)
-            {
-                return whitePawnAttack(square);
-            }
-            else
-            {
-                if constexpr(doubleStep)
-                {
-                    return whitePawnDoubleMove(square);
-                }
-                else
-                {
-                    return whitePawnMove(square);
-                }
-            }            
+            return whitePawnAttack(square);
         }
         else
         {
-            if constexpr(attack)
-            {
-                return blackPawnAttack(square);
-            }
-            else
-            {
-                if constexpr(doubleStep)
-                {
-                    return blackPawnDoubleMove(square);
-                }
-                else
-                {
-                    return blackPawnMove(square);
-                }
-            }
+            return blackPawnAttack(square);
+        }
+    }
+
+    BitBoard constexpr whitePawnPush(Square const square)
+    {
+        auto result = SQUARES[Neighbors[square][N]];
+        return result & ~RANKS[1];
+    }
+
+    BitBoard constexpr blackPawnPush(Square const square)
+    {
+        auto result = SQUARES[Neighbors[square][S]];
+        return result & ~RANKS[SquaresPerRank - 2];
+    }
+
+    template<Color color>
+    BitBoard constexpr pawnPush(Square const square)
+    {
+        if constexpr(color == WHITE)
+        {
+            return whitePawnPush(square);
+        }
+        else
+        {
+            return blackPawnPush(square);
         }
     }
 

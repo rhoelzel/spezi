@@ -41,7 +41,7 @@ namespace spezi
         auto king = ffs(position.allPieces[color] & position.individualPieces[KING]);
                  
         auto isIllegal = 
-            (PawnPushesAttacks<color, true>[king] & position.allPieces[other] & position.individualPieces[PAWN]) 
+            (PawnAttacks<color>[king] & position.allPieces[other] & position.individualPieces[PAWN]) 
             | (KnightAttacks[king] & position.allPieces[other] & position.individualPieces[KNIGHT])
             | (KingAttacks[king] & position.allPieces[other] & position.individualPieces[KING])
             | ((DiagonalAttacks[king][pext(~position.empty, DiagonalMasks[king])]
@@ -62,8 +62,8 @@ namespace spezi
         return nextMove;
     }
 
-    template<Piece piece, Color color, bool doubleStep = false>
-    MoveAddress generateRegularMovesBy(Position & position, MoveAddress nextMove)
+    template<Piece piece, Color color>
+    MoveAddress generateRegularNonCapturesBy(Position & position, MoveAddress nextMove)
     {
         static_assert(
             piece != BISHOP && 
@@ -71,8 +71,6 @@ namespace spezi
             piece != QUEEN, 
             "Use generateSlidingMoves(...)");
         
-        static_assert((piece == PAWN) | !doubleStep, "What do you mean, 'doubleStep = true'?");
-
         auto movers = position.allPieces[color] & position.individualPieces[piece];
 
         while(movers)
@@ -82,7 +80,16 @@ namespace spezi
             BitBoard targets;
             if constexpr(piece == PAWN)
             {
-                targets = PawnPushesAttacks<color, false, doubleStep>[mover] & position.empty;        
+                targets = PawnPushes<color>[mover] & position.empty;        
+                // double pushes from starting position
+                if constexpr(color == WHITE)
+                {
+                    targets |= (targets << SquaresPerRank) & position.empty & RANKS[3];
+                }
+                else
+                {
+                    targets |= (targets >> SquaresPerRank) & position.empty & RANKS[4];
+                }
             }
             else if constexpr(piece == KNIGHT)
             {
@@ -110,7 +117,7 @@ namespace spezi
     }
 
     template<Piece piece, Color color>
-    MoveAddress generateSlidingMovesBy(Position & position, MoveAddress nextMove)
+    MoveAddress generateSlidingNonCapturesBy(Position & position, MoveAddress nextMove)
     {
         static_assert(
             piece == BISHOP || 
@@ -153,7 +160,7 @@ namespace spezi
     }
 
     template<Piece piece, Color color>
-    MoveAddress generateCaptureOf(Position & position, MoveAddress nextMove)
+    MoveAddress generateCapturesOf(Position & position, MoveAddress nextMove)
     {
         auto targets = position.allPieces[color] & position.individualPieces[piece];
         auto constexpr other = color % NumberOfColors;
@@ -163,7 +170,7 @@ namespace spezi
             auto const target = ffs(targets);
 
             // pawns (least valuable attacker first)
-            auto attackers = PawnPushesAttacks<color, true>[target] 
+            auto attackers = PawnAttacks<color>[target] 
                                 & position.allPieces[other]
                                 & position.individualPieces[PAWN];        
                 
@@ -272,13 +279,12 @@ namespace spezi
 
         auto nextMove = result.data();
 
-        nextMove = generateRegularMovesBy<PAWN, WHITE, true>(position, nextMove);
-        nextMove = generateRegularMovesBy<PAWN, WHITE, false>(position, nextMove);  
-        nextMove = generateRegularMovesBy<KNIGHT, WHITE>(position, nextMove);
-        nextMove = generateSlidingMovesBy<BISHOP, WHITE>(position, nextMove);
-        nextMove = generateSlidingMovesBy<ROOK, WHITE>(position, nextMove);
-        nextMove = generateSlidingMovesBy<QUEEN, WHITE>(position, nextMove);
-        nextMove = generateRegularMovesBy<KING, WHITE>(position, nextMove);
+        nextMove = generateRegularNonCapturesBy<PAWN, color>(position, nextMove);  
+        nextMove = generateRegularNonCapturesBy<KNIGHT, color>(position, nextMove);
+        nextMove = generateSlidingNonCapturesBy<BISHOP, color>(position, nextMove);
+        nextMove = generateSlidingNonCapturesBy<ROOK, color>(position, nextMove);
+        nextMove = generateSlidingNonCapturesBy<QUEEN, color>(position, nextMove);
+        nextMove = generateRegularNonCapturesBy<KING, color>(position, nextMove);
         *nextMove = NULL_SQUARE;
 
         return result;
