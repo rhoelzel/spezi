@@ -30,4 +30,6 @@ namespace spezi
             E1|E8,                                              // kings
         }
     };
+
+    void prettyPrint(Position const & position);
 }

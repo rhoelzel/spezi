@@ -57,8 +57,8 @@ namespace spezi
     template<Color color, MoveType moveType>
     MoveAddress advanceMoveListIfLegal(Position & position, MoveAddress nextMove)
     {
-        auto constexpr other = (color + 1) % NumberOfColors;
-
+        auto constexpr other = (color == WHITE ? BLACK : WHITE);
+        
         move<color, moveType>(position, nextMove); 
 
         auto const king = ffs(position.allPieces[color] & position.individualPieces[KING]);
@@ -187,7 +187,7 @@ namespace spezi
     MoveAddress generateCapturesOf(Position & position, MoveAddress nextMove)
     {
         auto targets = position.allPieces[color] & position.individualPieces[piece];
-        auto constexpr other = color % NumberOfColors;
+        auto constexpr other = (color == WHITE ? BLACK : WHITE);
 
         while(targets)
         {
@@ -205,7 +205,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = PAWN;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -221,7 +221,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = KNIGHT;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -238,7 +238,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = BISHOP;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -256,12 +256,12 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = ROOK;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
             // queens    
-            attackers = (orthogonalEnemies | diagonalEnemies) & position.allPieces[other];
+            attackers = (orthogonalEnemies | diagonalEnemies) & position.individualPieces[QUEEN];
             
             while(attackers)
             {
@@ -270,7 +270,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = QUEEN;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -286,7 +286,7 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = KING;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<color, CAPTURE>(position, nextMove);
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 attackers &= attackers - 1;
             }
 
@@ -297,11 +297,16 @@ namespace spezi
     }
 
     template<Color color>
-    MoveList allMoves(Position & position)
+    void allMoves(Position & position, MoveList & moveList)
     {
-        MoveList result;
+        auto constexpr other = (color == WHITE ? BLACK : WHITE);
+        auto nextMove = moveList.data();
 
-        auto nextMove = result.data();
+        nextMove = generateCapturesOf<QUEEN, other>(position, nextMove);
+        nextMove = generateCapturesOf<ROOK, other>(position, nextMove);
+        nextMove = generateCapturesOf<BISHOP, other>(position, nextMove);
+        nextMove = generateCapturesOf<KNIGHT, other>(position, nextMove);
+        nextMove = generateCapturesOf<PAWN, other>(position, nextMove);
 
         nextMove = generateRegularNonCapturesBy<PAWN, color>(position, nextMove);  
         nextMove = generateRegularNonCapturesBy<KNIGHT, color>(position, nextMove);
@@ -309,9 +314,8 @@ namespace spezi
         nextMove = generateSlidingNonCapturesBy<ROOK, color>(position, nextMove);
         nextMove = generateSlidingNonCapturesBy<QUEEN, color>(position, nextMove);
         nextMove = generateRegularNonCapturesBy<KING, color>(position, nextMove);
+        
         *nextMove = NULL_SQUARE;
-
-        return result;
     }
 
     void prettyPrint(MoveList const & moveList);
