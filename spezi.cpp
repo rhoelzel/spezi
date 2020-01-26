@@ -35,12 +35,7 @@ void bruteForce(Position & p, int depth)
     auto constexpr other = (color == WHITE) ? BLACK : WHITE;
 
     MoveAddress nextMove;
-    /*for(nextMove = firstMove; nextMove != lastMove; nextMove += MoveSize)
-    {
-        move<color>(p, nextMove);
-        f[other](p, depth);
-        move<color>(p, nextMove);
-    }*/
+
     for(nextMove = firstMove; nextMove[CAPTURED]!=NULL_PIECE; nextMove += MoveSize)
     {
         move<color, CAPTURE>(p, nextMove);

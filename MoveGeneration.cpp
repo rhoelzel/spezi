@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 
+#define ffs(X) X
+
 namespace spezi
 {
     void prettyPrint(MoveAddress const firstMove)
