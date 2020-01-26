@@ -14,7 +14,8 @@ namespace spezi
         KING = 5
     };
 
-    
+    auto constexpr NULL_PIECE = -1;
+
     char const * const PieceTags[] =
     {
         "",

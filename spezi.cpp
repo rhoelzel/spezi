@@ -9,7 +9,7 @@
 using namespace spezi;
 
 int counter = 0;
-int maxDepth = 1;
+int maxDepth = 3;
 
 auto constexpr OnePlyMaxSize = 220*MoveSize;
 
@@ -31,22 +31,29 @@ void bruteForce(Position & p, int depth)
     {
         return;
     }
-
-    auto constexpr other = (color + 1) % NumberOfColors;
+        
+    auto constexpr other = (color == WHITE) ? BLACK : WHITE;
 
     MoveAddress nextMove;
-    for(nextMove = firstMove; nextMove[CAPTURED]!=KING; nextMove += MoveSize)
+    /*for(nextMove = firstMove; nextMove != lastMove; nextMove += MoveSize)
+    {
+        move<color>(p, nextMove);
+        f[other](p, depth);
+        move<color>(p, nextMove);
+    }*/
+    for(nextMove = firstMove; nextMove[CAPTURED]!=NULL_PIECE; nextMove += MoveSize)
     {
         move<color, CAPTURE>(p, nextMove);
         f[other](p, depth);
-        unmove<color, CAPTURE>(p, nextMove);
+        move<color, CAPTURE>(p, nextMove);
     }
     for(; nextMove!=lastMove; nextMove += MoveSize)
     {
         move<color, NON_CAPTURE>(p, nextMove);
         f[other](p, depth);
-        unmove<color, NON_CAPTURE>(p, nextMove);
+        move<color, NON_CAPTURE>(p, nextMove);
     }
+     
 }
 
 int main(int argc, char** argv)
