@@ -6,16 +6,16 @@
 
 namespace spezi
 {
-    void prettyPrint(MoveList const & moveList)
+    void prettyPrint(MoveAddress const firstMove)
     {
-        for(auto moveAddress = const_cast<Square *>(moveList.data()); *moveAddress != NULL_SQUARE; moveAddress += MoveSize)
+        for(auto nextMove = firstMove; *nextMove != NULL_SQUARE; nextMove += MoveSize)
         {
-            std::cout<<PieceTags[moveAddress[PIECE]]
-                <<static_cast<char>(moveAddress[FROM] % SquaresPerRank + 0x61)
-                <<static_cast<char>(moveAddress[FROM] / SquaresPerFile + 0x31)
-                <<(moveAddress[CAPTURED] != KING ? std::string("x") + PieceTags[moveAddress[CAPTURED]] : "")
-                <<static_cast<char>(moveAddress[TO] % SquaresPerRank + 0x61)
-                <<static_cast<char>(moveAddress[TO] / SquaresPerFile + 0x31)
+            std::cout<<PieceTags[nextMove[PIECE]]
+                <<static_cast<char>(nextMove[FROM] % SquaresPerRank + 0x61)
+                <<static_cast<char>(nextMove[FROM] / SquaresPerFile + 0x31)
+                <<(nextMove[CAPTURED] != KING ? std::string("x") + PieceTags[nextMove[CAPTURED]] : "")
+                <<static_cast<char>(nextMove[TO] % SquaresPerRank + 0x61)
+                <<static_cast<char>(nextMove[TO] / SquaresPerFile + 0x31)
                 <<std::endl;
         }       
     }
