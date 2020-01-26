@@ -9,9 +9,7 @@
 
 namespace spezi
 {
-    auto constexpr MaxMoveNumber = 220; 
-    
-    // alles noch keine sehr elegante Lösung für MoveList
+    // alles noch keine sehr elegante Lösung für die Move-Datenstrukturen
     auto constexpr FROM = 0;
     auto constexpr TO = 1;
     auto constexpr PIECE = 2;
@@ -20,7 +18,6 @@ namespace spezi
     auto constexpr MoveSize = 4;
 
      // from, to, from piece, to piece
-    using MoveList = std::array<Square, MaxMoveNumber * MoveSize>;
     using MoveAddress = Square *;
 
     enum MoveType
@@ -84,7 +81,7 @@ namespace spezi
             }
             nextMove += MoveSize;
         }
-
+        
         return nextMove;
     }
 
@@ -297,10 +294,9 @@ namespace spezi
     }
 
     template<Color color>
-    void allMoves(Position & position, MoveList & moveList)
+    MoveAddress allMoves(Position & position, MoveAddress nextMove)
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
-        auto nextMove = moveList.data();
 
         nextMove = generateCapturesOf<QUEEN, other>(position, nextMove);
         nextMove = generateCapturesOf<ROOK, other>(position, nextMove);
@@ -315,8 +311,9 @@ namespace spezi
         nextMove = generateSlidingNonCapturesBy<QUEEN, color>(position, nextMove);
         nextMove = generateRegularNonCapturesBy<KING, color>(position, nextMove);
         
-        *nextMove = NULL_SQUARE;
+        *nextMove = NULL_SQUARE; nextMove[CAPTURED] = KING;
+        return nextMove;
     }
 
-    void prettyPrint(MoveList const & moveList);
+    void prettyPrint(MoveAddress moveAddress);
 }

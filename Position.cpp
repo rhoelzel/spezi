@@ -73,7 +73,7 @@ namespace spezi
         unsigned char const ul = '/'; unsigned char const ur = '\\';
         unsigned char const ll = '\\'; unsigned char const lr = '/';
         
-        auto const bar =  std::string(17, '-');
+        auto const bar =  std::string(17, h);
         
         std::cout<<"  a b c d e f g h"<<std::endl;
         std::cout<<ul<<bar<<ur;
