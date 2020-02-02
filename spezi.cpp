@@ -62,9 +62,23 @@ int main(int argc, char** argv)
     f[BLACK] = bruteForce<BLACK>;
 
     auto p = StartPosition;
+    
+    Square myList[4*MoveSize] = 
+    { a2, b7, PAWN, PAWN, NULL_PIECE,
+      b8, a1, KNIGHT, ROOK, NULL_PIECE,
+      e2, e7, PAWN, PAWN, NULL_PIECE,
+      a7, a2, PAWN, PAWN, NULL_PIECE };
+    
+    move<WHITE, CAPTURE>(p, &myList[0]);
+    move<BLACK, CAPTURE>(p, &myList[5]);
+    move<WHITE, CAPTURE>(p, &myList[10]);
+    move<BLACK, NON_CAPTURE>(p, &myList[15]);
+    
     bruteForce<WHITE>(p, 0);
+    
+/*    prettyPrint(p);
+    allMoves<WHITE>(p, moveList.data());
 
-    prettyPrint(p);
-    prettyPrint(moveList.data());
+    prettyPrint(moveList.data());*/
     std::cout<<"Nodes: "<<counter;
 }

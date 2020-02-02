@@ -14,8 +14,9 @@ namespace spezi
     auto constexpr TO = 1;
     auto constexpr PIECE = 2;
     auto constexpr CAPTURED = 3;
+    auto constexpr PROMOTED = 4;
 
-    auto constexpr MoveSize = 4;
+    auto constexpr MoveSize = 5;
 
      // from, to, from piece, to piece
     using MoveAddress = Square *;
@@ -23,7 +24,10 @@ namespace spezi
     enum MoveType
     {
         NON_CAPTURE,
-        CAPTURE
+        CAPTURE, 
+        NON_CAPTURE_PROMOTION,
+        CAPTURE_PROMOTION,
+        CASTLING
     };
 
     template<Color color, MoveType moveType>
@@ -36,17 +40,35 @@ namespace spezi
         auto const fromTo = from ^ to;
 
         position.allPieces[color] ^= fromTo;    
-        position.individualPieces[move[PIECE]] ^= fromTo;           
         
         if constexpr(moveType == NON_CAPTURE)
         {
+            position.individualPieces[move[PIECE]] ^= fromTo;           
             position.empty ^= fromTo;    
         }
-        else
+        else if constexpr(moveType == CAPTURE)
         {
+            position.individualPieces[move[PIECE]] ^= fromTo;           
             position.allPieces[other] ^= to;         
             position.individualPieces[move[CAPTURED]] ^= to;
             position.empty ^= from;             
+        }
+        else if constexpr(moveType == NON_CAPTURE_PROMOTION)
+        {
+            position.individualPieces[PAWN] ^= from;
+            position.individualPieces[move[PROMOTED]] ^= to;          
+            position.empty ^=fromTo;
+        }
+        else if constexpr(moveType == CAPTURE_PROMOTION)
+        {
+            position.individualPieces[PAWN] ^= from;
+            position.individualPieces[move[PROMOTED]] ^= to;          
+            position.allPieces[other] ^= to;
+            position.individualPieces[move[CAPTURED]] ^= to;
+            position.empty ^= from;
+        }
+        else // castling
+        {
         }
     }
 
@@ -71,14 +93,18 @@ namespace spezi
                 | FileAttacks[king][pext(~position.empty, FileMasks[king])])
                 & position.allPieces[other]) & (position.individualPieces[ROOK] | position.individualPieces[QUEEN]));
 
-        move<color, moveType>(position, nextMove);
+        unmove<color, moveType>(position, nextMove);
 
         if(!isIllegal)
         {
-            if constexpr(moveType == NON_CAPTURE)
-            {
                 // probably needs a better place than here
+            if constexpr(moveType == NON_CAPTURE || moveType == NON_CAPTURE_PROMOTION)
+            {
                 nextMove[CAPTURED] = NULL_PIECE;
+            }
+            else if constexpr(moveType == NON_CAPTURE || moveType == CAPTURE)
+            {
+                nextMove[PROMOTED] = NULL_PIECE;;
             }
             nextMove += MoveSize;
         }
@@ -96,6 +122,7 @@ namespace spezi
             "Use generateSlidingNonCaptures(...)");
         
         auto movers = position.allPieces[color] & position.individualPieces[piece];
+        auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-1] : RANKS[0]);
 
         while(movers)
         {
@@ -114,6 +141,22 @@ namespace spezi
                 {
                     targets |= (targets >> SquaresPerRank) & position.empty & RANKS[4];
                 }
+        
+                // handle promotions before anything else
+                auto lastRankTargets = targets & promotionRank;
+                while(lastRankTargets)
+                {
+                    auto const target = ffs(lastRankTargets);
+                    for(int promotedTo = static_cast<int>(QUEEN); promotedTo != static_cast<int>(PAWN); --promotedTo)
+                    {
+                        nextMove[FROM] = mover;
+                        nextMove[TO] = target;
+                        nextMove[PROMOTED] = promotedTo;
+                        nextMove = advanceMoveListIfLegal<color, NON_CAPTURE_PROMOTION>(position, nextMove);
+                    }
+                    lastRankTargets &= lastRankTargets - 1;
+                }
+                targets &= (~promotionRank);
             }
             else if constexpr(piece == KNIGHT)
             {
@@ -187,6 +230,8 @@ namespace spezi
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
 
         auto targets = position.allPieces[color] & position.individualPieces[piece];
+        auto constexpr a = (color == BLACK ? 1 : -1);
+        auto constexpr b = (color == BLACK ? 24 : 23);
 
         while(targets)
         {
@@ -200,11 +245,25 @@ namespace spezi
             while(attackers)
             {
                 auto const attacker = ffs(attackers);
+                if((target - h4) * a > b)
+                {
+                    for(int promotedTo = static_cast<int>(QUEEN); promotedTo != static_cast<int>(PAWN); --promotedTo)
+                    {
+                        nextMove[FROM] = attacker;
+                        nextMove[TO] = target;
+                        nextMove[PROMOTED] = promotedTo;
+                        nextMove[CAPTURED] = piece;
+                        nextMove = advanceMoveListIfLegal<other, CAPTURE_PROMOTION>(position, nextMove);
+                    }
+                }
+                else
+                {
                 nextMove[FROM] = attacker;
                 nextMove[TO] = target;
                 nextMove[PIECE] = PAWN;
                 nextMove[CAPTURED] = piece;
                 nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
+                }
                 attackers &= attackers - 1;
             }
 
