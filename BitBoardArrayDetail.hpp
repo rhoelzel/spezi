@@ -1,7 +1,5 @@
 #pragma once
 
-#include <algorithm>
-
 namespace spezi::detail
 {
     using namespace Neighborhood;
