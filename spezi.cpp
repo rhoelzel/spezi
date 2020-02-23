@@ -53,26 +53,64 @@ void bruteForce(Position & p, int depth)
      
 }
 
+void dumpMobilities(double const factor, double const max)
+{
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<Square> dis(0 , NumberOfSquares-1);
+    for(auto population = 32; population > 2; --population)
+    {
+        for(auto square = a1; square != OFF_BOARD; ++square)
+        {
+            std::cout<<detail::averageMobility<PAWN>(square, population, factor, gen, dis, max)<<", ";
+            std::cout<<detail::averageMobility<KNIGHT>(square, population, factor, gen, dis, max)<<", ";
+            std::cout<<detail::averageMobility<BISHOP>(square, population, factor, gen, dis, max)<<", ";
+            std::cout<<detail::averageMobility<ROOK>(square, population, factor, gen, dis, max)<<", ";
+            std::cout<<detail::averageMobility<QUEEN>(square, population, factor, gen, dis, max)<<", ";
+            std::cout<<detail::averageMobility<KING>(square, population, factor, gen, dis, max)<<", ";            
+        }
+        std::cout<<std::endl;
+        std::cerr<<"finished "<<population<<std::endl;
+    }
+}
+
+template<Piece piece, Square pieceSquare, Piece unit, Square unitSquare>
+float constexpr convert(Square const population)
+{
+    return static_cast<float>(AverageMobilities<piece>[pieceSquare][population-3])
+        /static_cast<float>(AverageMobilities<unit>[unitSquare][population-3]);
+} 
+
+void dump()
+{
+    for(int p = 32; p>2; --p)
+    {
+        std::cout<<convert<QUEEN,a1,PAWN,a3>(p)<<", ";
+        std::cout<<convert<ROOK,a1,PAWN,a3>(p)<<", ";
+        std::cout<<convert<BISHOP,a1,PAWN,a3>(p)<<", ";
+        std::cout<<convert<KNIGHT,a1,PAWN,a3>(p)<<", ";
+        std::cout<<convert<KING,a1,PAWN,a3>(p)<<", ";
+        std::cout<<convert<QUEEN,d4,PAWN,a3>(p)<<", ";
+        std::cout<<convert<ROOK,d4,PAWN,a3>(p)<<", ";
+        std::cout<<convert<BISHOP,d4,PAWN,a3>(p)<<", ";
+        std::cout<<convert<KNIGHT,d4,PAWN,a3>(p)<<", ";
+        std::cout<<convert<KING,d4,PAWN,a3>(p)<<std::endl;
+    }
+}
+
 int main(int argc, char** argv)
 {
+    double factor = 0.5;
+    double max = 20000;
     if(argc > 1)
     {
-        maxDepth = std::stoi(argv[1]);
+        factor = std::stod(argv[1]);
     }
-
-    auto depth = maxDepth;
-    auto initial = 20;
-    auto step = 10;
-
     if(argc > 2)
     {
-        initial  = std::stoi(argv[2]);
+        max = std::stod(argv[2]);
     }
 
-    if(argc > 3)
-    {
-        step = std::stoi(argv[3]);
-    }
 
     /*    
     
@@ -99,21 +137,44 @@ int main(int argc, char** argv)
 
     prettyPrint(moveList.data());
     std::cout<<"Nodes: "<<counter;*/
+    dump();
+    /*std::cout<<"pawn c4 ";
+    prettyPrint(AverageMobilities<PAWN>[c4]);
+    std::cout<<"pawn 32, 16, 3";
+    prettyPrint(AverageMobilities<PAWN>, 32);
+    prettyPrint(AverageMobilities<PAWN>, 16);
+    prettyPrint(AverageMobilities<PAWN>, 3);
+    std::cout<<"knight c4 ";
+    prettyPrint(AverageMobilities<KNIGHT>[c4]);
+    std::cout<<"knight 32,16,3 ";
+    prettyPrint(AverageMobilities<KNIGHT>, 32);
+    prettyPrint(AverageMobilities<KNIGHT>, 16);
+    prettyPrint(AverageMobilities<KNIGHT>, 3);
+    std::cout<<"bishop c4 ";
+    prettyPrint(AverageMobilities<BISHOP>[c4]);
+    std::cout<<"bishop 32,16,3 ";
+    prettyPrint(AverageMobilities<BISHOP>, 32);
+    prettyPrint(AverageMobilities<BISHOP>, 16);
+    prettyPrint(AverageMobilities<BISHOP>, 3);
+    std::cout<<"rook c4 ";
+    prettyPrint(AverageMobilities<ROOK>[c4]);
+    std::cout<<"rook 32,16,3 ";
+    prettyPrint(AverageMobilities<ROOK>, 32);
+    prettyPrint(AverageMobilities<ROOK>, 16);
+    prettyPrint(AverageMobilities<ROOK>, 3);
+    std::cout<<"queen c4 ";
+    prettyPrint(AverageMobilities<QUEEN>[c4]);
+    std::cout<<"queen 32,16,3 ";
+    prettyPrint(AverageMobilities<QUEEN>, 32);
+    prettyPrint(AverageMobilities<QUEEN>, 16);
+    prettyPrint(AverageMobilities<QUEEN>, 3);
+    std::cout<<"king c4 ";
+    prettyPrint(AverageMobilities<KING>[c4]);
+    std::cout<<"king 32,16,3 ";
+    prettyPrint(AverageMobilities<KING>, 32);
+    prettyPrint(AverageMobilities<KING>, 16);
+    prettyPrint(AverageMobilities<KING>, 3);*/
 
-    for(int i = 1; i!=31;++i)
-    {
-        auto const k = detail::averageMobilities<KING>(32-i);
-        auto const n = detail::averageMobilities<KNIGHT>(32-i);
-        auto const b = detail::averageMobilities<BISHOP>(32-i);
-        auto const r = detail::averageMobilities<ROOK>(32-i);
-        auto const q = detail::averageMobilities<QUEEN>(32-i);
-        auto const p = detail::averageMobilities<PAWN>(32-i);
-
-        for(auto j = 0; j< NumberOfSquares; ++j)
-        {
-            std::cout<<k[j]<<", "<<n[j]<<", "<<b[j]<<", "<<r[j]<<", "<<q[j]<<", "<<p[j]<<", ";
-        }
-        std::cout<<std::endl;
-        std::cerr<<"finished "<<i<<std::endl;
-    }
+  // dumpMobilities(factor, max);
 }
+    
