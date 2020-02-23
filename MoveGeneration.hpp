@@ -224,15 +224,26 @@ namespace spezi
         return nextMove;
     }
                 
+    template<Color color>
+    bool constexpr isPromotionSquare(Square const target)
+    {
+        if constexpr(color == WHITE)
+        {
+            return target > h7;
+        }
+        else
+        {
+            return target < h2;
+        }
+    }
+
     template<Piece piece, Color color>
     MoveAddress generateCapturesOf(Position & position, MoveAddress nextMove)
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
 
         auto targets = position.allPieces[color] & position.individualPieces[piece];
-        auto constexpr a = (color == BLACK ? 1 : -1);
-        auto constexpr b = (color == BLACK ? 24 : 23);
-
+        
         while(targets)
         {
             auto const target = ffs(targets);
@@ -245,7 +256,7 @@ namespace spezi
             while(attackers)
             {
                 auto const attacker = ffs(attackers);
-                if((target - h4) * a > b)
+                if(isPromotionSquare<other>(target))
                 {
                     for(int promotedTo = static_cast<int>(QUEEN); promotedTo != static_cast<int>(PAWN); --promotedTo)
                     {
