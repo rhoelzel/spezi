@@ -49,8 +49,7 @@ void bruteForce(Position & p, int depth)
         move<color, NON_CAPTURE>(p, nextMove);
         f[other](p, depth);
         move<color, NON_CAPTURE>(p, nextMove);
-    }
-     
+    }     
 }
 
 void dumpMobilities(double const factor, double const max)
@@ -58,6 +57,7 @@ void dumpMobilities(double const factor, double const max)
     std::random_device rd;
     std::mt19937_64 gen(rd());
     std::uniform_int_distribution<Square> dis(0 , NumberOfSquares-1);
+    
     for(auto population = 32; population > 2; --population)
     {
         for(auto square = a1; square != OFF_BOARD; ++square)
@@ -85,16 +85,16 @@ void dump()
 {
     for(int p = 32; p>2; --p)
     {
-        std::cout<<convert<QUEEN,a1,PAWN,a3>(p)<<", ";
-        std::cout<<convert<ROOK,a1,PAWN,a3>(p)<<", ";
-        std::cout<<convert<BISHOP,a1,PAWN,a3>(p)<<", ";
-        std::cout<<convert<KNIGHT,a1,PAWN,a3>(p)<<", ";
-        std::cout<<convert<KING,a1,PAWN,a3>(p)<<", ";
-        std::cout<<convert<QUEEN,d4,PAWN,a3>(p)<<", ";
-        std::cout<<convert<ROOK,d4,PAWN,a3>(p)<<", ";
-        std::cout<<convert<BISHOP,d4,PAWN,a3>(p)<<", ";
-        std::cout<<convert<KNIGHT,d4,PAWN,a3>(p)<<", ";
-        std::cout<<convert<KING,d4,PAWN,a3>(p)<<std::endl;
+        std::cout<<convert<QUEEN,a1,PAWN,d4>(p)<<", ";
+        std::cout<<convert<ROOK,a1,PAWN,d4>(p)<<", ";
+        std::cout<<convert<BISHOP,a1,PAWN,d4>(p)<<", ";
+        std::cout<<convert<KNIGHT,a1,PAWN,d4>(p)<<", ";
+        std::cout<<convert<KING,a1,PAWN,d4>(p)<<", ";
+        std::cout<<convert<QUEEN,d4,PAWN,d4>(p)<<", ";
+        std::cout<<convert<ROOK,d4,PAWN,d4>(p)<<", ";
+        std::cout<<convert<BISHOP,d4,PAWN,d4>(p)<<", ";
+        std::cout<<convert<KNIGHT,d4,PAWN,d4>(p)<<", ";
+        std::cout<<convert<KING,d4,PAWN,d4>(p)<<std::endl;
     }
 }
 
@@ -137,7 +137,9 @@ int main(int argc, char** argv)
 
     prettyPrint(moveList.data());
     std::cout<<"Nodes: "<<counter;*/
+   
     dump();
+   
     /*std::cout<<"pawn c4 ";
     prettyPrint(AverageMobilities<PAWN>[c4]);
     std::cout<<"pawn 32, 16, 3";
@@ -175,6 +177,6 @@ int main(int argc, char** argv)
     prettyPrint(AverageMobilities<KING>, 16);
     prettyPrint(AverageMobilities<KING>, 3);*/
 
-  // dumpMobilities(factor, max);
+    //dumpMobilities(factor, max);
 }
     
