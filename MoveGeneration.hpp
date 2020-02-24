@@ -241,9 +241,25 @@ namespace spezi
     MoveAddress generateCapturesOf(Position & position, MoveAddress nextMove)
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
+        
+        BitBoard attackers;
+        auto writeMoves = [&attackers, &nextMove, &position]
+            (Square const target, Piece const attackingPiece)
+        {
+            while(attackers)
+            {
+                auto const attacker = ffs(attackers);
+                nextMove[FROM] = attacker;
+                nextMove[TO] = target;
+                nextMove[PIECE] = attackingPiece;
+                nextMove[CAPTURED] = piece;
+                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
+                attackers &= attackers - 1;
+            }
+        };
 
         auto targets = position.allPieces[color] & position.individualPieces[piece];
-        
+
         while(targets)
         {
             auto const target = ffs(targets);
@@ -269,11 +285,11 @@ namespace spezi
                 }
                 else
                 {
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = PAWN;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
+                    nextMove[FROM] = attacker;
+                    nextMove[TO] = target;
+                    nextMove[PIECE] = PAWN;
+                    nextMove[CAPTURED] = piece;
+                    nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
                 }
                 attackers &= attackers - 1;
             }
@@ -282,34 +298,14 @@ namespace spezi
             attackers = KnightAttacks[target] 
                             & position.allPieces[other]
                             & position.individualPieces[KNIGHT];        
-                
-            while(attackers)
-            {
-                auto const attacker = ffs(attackers);
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = KNIGHT;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
-                attackers &= attackers - 1;
-            }
+            writeMoves(target, KNIGHT);     
 
             // bishops
             auto const diagonalEnemies = 
                 DiagonalAttacks[target][pext(~position.empty, DiagonalMasks[target])]
                 & position.allPieces[other];
             attackers = diagonalEnemies & position.individualPieces[BISHOP];
-            
-            while(attackers)
-            {
-                auto const attacker = ffs(attackers);
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = BISHOP;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
-                attackers &= attackers - 1;
-            }
+            writeMoves(target, BISHOP);     
 
             // rooks
             auto const orthogonalEnemies = 
@@ -317,48 +313,18 @@ namespace spezi
                 | FileAttacks[target][pext(~position.empty, FileMasks[target])])
                 & position.allPieces[other];
             attackers = orthogonalEnemies & position.individualPieces[ROOK];
+            writeMoves(target, ROOK);     
             
-            while(attackers)
-            {
-                auto const attacker = ffs(attackers);
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = ROOK;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
-                attackers &= attackers - 1;
-            }
-
             // queens    
             attackers = (orthogonalEnemies | diagonalEnemies) & position.individualPieces[QUEEN];
+            writeMoves(target, QUEEN);     
             
-            while(attackers)
-            {
-                auto const attacker = ffs(attackers);
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = QUEEN;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
-                attackers &= attackers - 1;
-            }
-
             // king 
             attackers = KingAttacks[target] 
                             & position.allPieces[other]
                             & position.individualPieces[KING];        
-                
-            if(attackers) // only one king
-            {
-                auto const attacker = ffs(targets);
-                nextMove[FROM] = attacker;
-                nextMove[TO] = target;
-                nextMove[PIECE] = KING;
-                nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
-                attackers &= attackers - 1;
-            }
-
+            writeMoves(target, KING);     
+            
             targets &= targets - 1;
         }
         
