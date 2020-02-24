@@ -129,7 +129,7 @@ namespace spezi::detail
         return result;
     }
 
-    // logic above here is only used to generate MobilityCoefficients.hpp (via polynomial fitting)
+    // logic above is only used to generate MobilityCoefficients.hpp (via polynomial fitting)
     // from here on, actual mobilities used by the program are computed
     
     Square constexpr MaxBoardPopulation = 32;  
@@ -168,16 +168,13 @@ namespace spezi::detail
 
     template<Piece piece>
     auto constexpr averageMobilities()
-    { 
-        std::array<std::array<float, MaxBoardPopulation-2>, NumberOfSquares> result {};
+    {      
+        std::array<std::array<int, MaxBoardPopulation-2>, NumberOfSquares> result {};
         for(auto square = a1; square != OFF_BOARD; ++square)
         {
             for(auto population = 3; population <= MaxBoardPopulation; ++population)
             {
-                auto const resultUnscaled = averageMobility(piece, square, population);
-         
-                auto const referenceMobility = averageMobility(PAWN, d4, 16);
-                result[square][population-3] = resultUnscaled/referenceMobility;
+                result[square][population-3] = static_cast<int>(averageMobility(piece, square, population) * 1024 + 0.5);
             }
         }
         return result;
