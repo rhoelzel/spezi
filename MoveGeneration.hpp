@@ -113,14 +113,8 @@ namespace spezi
     }
 
     template<Piece piece, Color color>
-    MoveAddress generateRegularNonCapturesBy(Position & position, MoveAddress nextMove)
+    MoveAddress generateNonCapturesBy(Position & position, MoveAddress nextMove)
     {
-        static_assert(
-            piece != BISHOP && 
-            piece != ROOK && 
-            piece != QUEEN, 
-            "Use generateSlidingNonCaptures(...)");
-        
         auto movers = position.allPieces[color] & position.individualPieces[piece];
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-1] : RANKS[0]);
 
@@ -128,7 +122,8 @@ namespace spezi
         {
             auto const mover = ffs(movers);
                         
-            BitBoard targets;
+            BitBoard targets { EMPTY };
+
             if constexpr(piece == PAWN)
             {
                 targets = PawnPushes<color>[mover] & position.empty;        
@@ -162,6 +157,16 @@ namespace spezi
             {
                 targets = KnightAttacks[mover] & position.empty;
             }
+            else if constexpr(piece == BISHOP || piece == QUEEN)
+            {
+                targets |= DiagonalAttacks[mover][pext(~position.empty, DiagonalMasks[mover])] & position.empty;
+            }
+            else if constexpr(piece == ROOK || piece == QUEEN)
+            {
+                targets |= (RankAttacks[mover][pext(~position.empty, RankMasks[mover])]
+                            | FileAttacks[mover][pext(~position.empty, FileMasks[mover])])
+                            & position.empty;        
+            }
             else
             {
                 targets = KingAttacks[mover] & position.empty;
@@ -179,48 +184,6 @@ namespace spezi
             movers &= movers - 1;
         }
 
-        return nextMove;
-    }
-
-    template<Piece piece, Color color>
-    MoveAddress generateSlidingNonCapturesBy(Position & position, MoveAddress nextMove)
-    {
-        static_assert(
-            piece == BISHOP || 
-            piece == ROOK ||
-            piece == QUEEN, 
-            "Use generateRegularNonCaptures(...)");
-        
-        auto movers = position.allPieces[color] & position.individualPieces[piece];
-
-        while(movers)
-        {
-            auto const mover = ffs(movers);
-            
-            BitBoard targets {EMPTY};
-            if constexpr(piece == ROOK || piece == QUEEN)
-            {
-                targets |= (RankAttacks[mover][pext(~position.empty, RankMasks[mover])]
-                            | FileAttacks[mover][pext(~position.empty, FileMasks[mover])])
-                            & position.empty;        
-            }
-            if constexpr(piece == BISHOP || piece == QUEEN)
-            {
-                targets |= DiagonalAttacks[mover][pext(~position.empty, DiagonalMasks[mover])] & position.empty;
-            }
-                      
-            while(targets)
-            {
-                auto const target = ffs(targets);
-                nextMove[FROM] = mover;
-                nextMove[TO] = target;
-                nextMove[PIECE] = piece;
-                nextMove = advanceMoveListIfLegal<color, NON_CAPTURE>(position, nextMove);
-                targets &= targets - 1;            
-            }
-            movers &= movers - 1;
-        }
-        
         return nextMove;
     }
                 
@@ -342,12 +305,12 @@ namespace spezi
         nextMove = generateCapturesOf<KNIGHT, other>(position, nextMove);
         nextMove = generateCapturesOf<PAWN, other>(position, nextMove);
 
-        nextMove = generateRegularNonCapturesBy<PAWN, color>(position, nextMove);  
-        nextMove = generateRegularNonCapturesBy<KNIGHT, color>(position, nextMove);
-        nextMove = generateSlidingNonCapturesBy<BISHOP, color>(position, nextMove);
-        nextMove = generateSlidingNonCapturesBy<ROOK, color>(position, nextMove);
-        nextMove = generateSlidingNonCapturesBy<QUEEN, color>(position, nextMove);
-        nextMove = generateRegularNonCapturesBy<KING, color>(position, nextMove);
+        nextMove = generateNonCapturesBy<PAWN, color>(position, nextMove);  
+        nextMove = generateNonCapturesBy<KNIGHT, color>(position, nextMove);
+        nextMove = generateNonCapturesBy<BISHOP, color>(position, nextMove);
+        nextMove = generateNonCapturesBy<ROOK, color>(position, nextMove);
+        nextMove = generateNonCapturesBy<QUEEN, color>(position, nextMove);
+        nextMove = generateNonCapturesBy<KING, color>(position, nextMove);
         
         *nextMove = NULL_SQUARE; nextMove[CAPTURED] = NULL_PIECE;
         return nextMove;
