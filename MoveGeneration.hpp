@@ -228,9 +228,9 @@ namespace spezi
             auto const target = ffs(targets);
 
             // pawns (least valuable attacker first)
-            auto attackers = PawnAttacks<color>[target] 
-                                & position.allPieces[other]
-                                & position.individualPieces[PAWN];        
+            attackers = PawnAttacks<color>[target] 
+                            & position.allPieces[other]
+                            & position.individualPieces[PAWN];        
                 
             while(attackers)
             {

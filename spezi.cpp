@@ -54,18 +54,11 @@ void bruteForce(Position & p, int depth)
 
 int main(int argc, char** argv)
 {
-    double factor = 0.5;
-    double max = 20000;
     if(argc > 1)
     {
-        factor = std::stod(argv[1]);
-    }
-    if(argc > 2)
-    {
-        max = std::stod(argv[2]);
+        maxDepth = std::stoi(argv[1]);
     }
     
-    /*
     f[WHITE] = bruteForce<WHITE>;
     f[BLACK] = bruteForce<BLACK>;
 
@@ -88,8 +81,7 @@ int main(int argc, char** argv)
     allMoves<WHITE>(p, moveList.data());
 
     prettyPrint(moveList.data());
-    std::cout<<"Nodes: "<<counter;*/
-   
+    std::cout<<"Nodes: "<<counter<<std::endl;
     
 }
     
