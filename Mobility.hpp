@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Color.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
 
@@ -25,12 +26,12 @@ namespace spezi
     // mobility contributes fully to the static mobility, squares that are reachable 
     // on the second/third/fourth/... move contribute with weight 0.5/0.25/0.125/...
     // => a Queen on d4 has a static mobility of 37945 MilliSquares
-    template<Piece piece>
-    MobilityArray constexpr StaticMobilities = detail::averageMobilities<piece>(); 
+    template<Piece piece, Color color>
+    MobilityArray constexpr StaticMobilities = detail::averageMobilities<piece, color>(); 
     auto constexpr populationIndex(Square const population) { return population - 3; } 
 
     // Static mobility of a white pawn on d4 on a half full board (3180 MilliSquares) 
-    MilliSquare constexpr PawnUnit = StaticMobilities<PAWN>[d4][populationIndex(16)];
+    MilliSquare constexpr PawnUnit = StaticMobilities<PAWN, WHITE>[d4][populationIndex(32)];
 
     float constexpr milliToPawnUnit(MilliSquare const mobility)
     {

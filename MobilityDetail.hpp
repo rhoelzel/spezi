@@ -166,15 +166,16 @@ namespace spezi::detail
         return a*x4+b*x3+c*x2+d*x+e;
     }
 
-    template<Piece piece>
+    template<Piece piece, Color color>
     auto constexpr averageMobilities()
     {      
         std::array<std::array<int, MaxBoardPopulation-2>, NumberOfSquares> result {};
         for(auto square = a1; square != OFF_BOARD; ++square)
         {
+            auto const flippedSquare = (color == WHITE ? square : NumberOfSquares-square-1);
             for(auto population = 3; population <= MaxBoardPopulation; ++population)
             {
-                result[square][population-3] = static_cast<int>(averageMobility(piece, square, population) * 1024 + 0.5);
+                result[square][population-3] = static_cast<int>(averageMobility(piece, flippedSquare, population) * 1024 + 0.5);
             }
         }
         return result;
