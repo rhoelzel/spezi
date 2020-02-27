@@ -8,9 +8,9 @@
 
 namespace spezi
 {
-    void prettyPrint(MoveAddress const firstMove)
+    void prettyPrint(MoveAddress const firstMove, MoveAddress const lastMove)
     {
-        for(auto nextMove = firstMove; *nextMove != NULL_SQUARE; nextMove += MoveSize)
+        for(auto nextMove = firstMove; nextMove!=lastMove; nextMove += MoveSize)
         {
             std::cout<<PieceTags[nextMove[PIECE]]
                 <<static_cast<char>(ffs(nextMove[FROM]) % SquaresPerRank + 0x61)

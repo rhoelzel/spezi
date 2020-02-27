@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BitBoardArray.hpp"
+#include "Mobility.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
 #include "Position.hpp"
@@ -75,53 +76,19 @@ namespace spezi
     template<Color color, MoveType moveType>
     auto constexpr unmove = move<color, moveType>;    
 
-    template<Color color, MoveType moveType>
-    MoveAddress advanceMoveListIfLegal(Position & position, MoveAddress nextMove)
-    {
-        auto constexpr other = (color == WHITE ? BLACK : WHITE);
-        
-        move<color, moveType>(position, nextMove); 
-
-        auto const king = ffs(position.allPieces[color] & position.individualPieces[KING]);
-        auto isIllegal = 
-            (PawnAttacks<color>[king] & position.allPieces[other] & position.individualPieces[PAWN]) 
-            | (KnightAttacks[king] & position.allPieces[other] & position.individualPieces[KNIGHT])
-            | (KingAttacks[king] & position.allPieces[other] & position.individualPieces[KING])
-            | ((DiagonalAttacks[king][pext(~position.empty, DiagonalMasks[king])]
-                & position.allPieces[other]) & (position.individualPieces[BISHOP] | position.individualPieces[QUEEN]))
-            | (((RankAttacks[king][pext(~position.empty, RankMasks[king])]
-                | FileAttacks[king][pext(~position.empty, FileMasks[king])])
-                & position.allPieces[other]) & (position.individualPieces[ROOK] | position.individualPieces[QUEEN]));
-
-        unmove<color, moveType>(position, nextMove);
-
-        if(!isIllegal)
-        {
-                // probably needs a better place than here
-            if constexpr(moveType == NON_CAPTURE || moveType == NON_CAPTURE_PROMOTION)
-            {
-                nextMove[CAPTURED] = NULL_PIECE;
-            }
-            else if constexpr(moveType == NON_CAPTURE || moveType == CAPTURE)
-            {
-                nextMove[PROMOTED] = NULL_PIECE;;
-            }
-            nextMove += MoveSize;
-        }
-        
-        return nextMove;
-    }
-
     template<Piece piece, Color color>
-    MoveAddress generateNonCapturesBy(Position & position, MoveAddress nextMove)
+    MoveAddress generateNonCapturesBy(Position & position, MilliSquare & evaluation, MoveAddress nextMove)
     {
-        auto movers = position.allPieces[color] & position.individualPieces[piece];
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-1] : RANKS[0]);
+        auto const population = popcount(~position.empty);
+
+        auto movers = position.allPieces[color] & position.individualPieces[piece];
 
         while(movers)
         {
             auto const mover = ffs(movers);
-                        
+            evaluation += StaticMobilities<piece, color>[mover][populationIndex(population)];
+
             BitBoard targets { EMPTY };
 
             if constexpr(piece == PAWN)
@@ -136,7 +103,7 @@ namespace spezi
                 {
                     targets |= (targets >> SquaresPerRank) & position.empty & RANKS[4];
                 }
-        
+
                 // handle promotions before anything else
                 auto lastRankTargets = targets & promotionRank;
                 while(lastRankTargets)
@@ -146,8 +113,10 @@ namespace spezi
                     {
                         nextMove[FROM] = mover;
                         nextMove[TO] = target;
+                        nextMove[PIECE] = piece;
+                        nextMove[CAPTURED] = NULL_PIECE;
                         nextMove[PROMOTED] = promotedTo;
-                        nextMove = advanceMoveListIfLegal<color, NON_CAPTURE_PROMOTION>(position, nextMove);
+                        nextMove+=MoveSize;
                     }
                     lastRankTargets &= lastRankTargets - 1;
                 }
@@ -178,7 +147,9 @@ namespace spezi
                 nextMove[FROM] = mover;
                 nextMove[TO] = target;
                 nextMove[PIECE] = piece;
-                nextMove = advanceMoveListIfLegal<color, NON_CAPTURE>(position, nextMove);
+                nextMove[CAPTURED] = NULL_PIECE;
+                nextMove[PROMOTED] = NULL_PIECE;
+                nextMove+=MoveSize;
                 targets &= targets - 1;            
             }
             movers &= movers - 1;
@@ -201,12 +172,13 @@ namespace spezi
     }
 
     template<Piece piece, Color color>
-    MoveAddress generateCapturesOf(Position & position, MoveAddress nextMove)
+    MoveAddress generateCapturesOf(Position & position, MilliSquare & evaluation, MoveAddress nextMove)
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
-        
+        auto const population = popcount(~position.empty);
+
         BitBoard attackers;
-        auto writeMoves = [&attackers, &nextMove, &position]
+        auto const writeMoves = [&attackers, &nextMove]
             (Square const target, Piece const attackingPiece)
         {
             while(attackers)
@@ -216,7 +188,8 @@ namespace spezi
                 nextMove[TO] = target;
                 nextMove[PIECE] = attackingPiece;
                 nextMove[CAPTURED] = piece;
-                nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
+                nextMove[PROMOTED] = NULL_PIECE;
+                nextMove+=MoveSize;
                 attackers &= attackers - 1;
             }
         };
@@ -226,6 +199,7 @@ namespace spezi
         while(targets)
         {
             auto const target = ffs(targets);
+            evaluation -= StaticMobilities<piece, color>[target][populationIndex(population)];
 
             // pawns (least valuable attacker first)
             attackers = PawnAttacks<color>[target] 
@@ -234,6 +208,7 @@ namespace spezi
                 
             while(attackers)
             {
+                if constexpr(piece == KING) { return nullptr; }
                 auto const attacker = ffs(attackers);
                 if(isPromotionSquare<other>(target))
                 {
@@ -241,9 +216,10 @@ namespace spezi
                     {
                         nextMove[FROM] = attacker;
                         nextMove[TO] = target;
-                        nextMove[PROMOTED] = promotedTo;
+                        nextMove[PIECE] = PAWN;
                         nextMove[CAPTURED] = piece;
-                        nextMove = advanceMoveListIfLegal<other, CAPTURE_PROMOTION>(position, nextMove);
+                        nextMove[PROMOTED] = promotedTo;
+                        nextMove+=MoveSize;
                     }
                 }
                 else
@@ -252,7 +228,8 @@ namespace spezi
                     nextMove[TO] = target;
                     nextMove[PIECE] = PAWN;
                     nextMove[CAPTURED] = piece;
-                    nextMove = advanceMoveListIfLegal<other, CAPTURE>(position, nextMove);
+                    nextMove[PROMOTED] = NULL_PIECE;
+                    nextMove+=MoveSize;
                 }
                 attackers &= attackers - 1;
             }
@@ -260,7 +237,8 @@ namespace spezi
             // knights 
             attackers = KnightAttacks[target] 
                             & position.allPieces[other]
-                            & position.individualPieces[KNIGHT];        
+                            & position.individualPieces[KNIGHT];      
+            if constexpr(piece == KING) { if(attackers) { return nullptr; } }  
             writeMoves(target, KNIGHT);     
 
             // bishops
@@ -268,6 +246,7 @@ namespace spezi
                 DiagonalAttacks[target][pext(~position.empty, DiagonalMasks[target])]
                 & position.allPieces[other];
             attackers = diagonalEnemies & position.individualPieces[BISHOP];
+            if constexpr(piece == KING) { if(attackers) { return nullptr; } }  
             writeMoves(target, BISHOP);     
 
             // rooks
@@ -276,10 +255,12 @@ namespace spezi
                 | FileAttacks[target][pext(~position.empty, FileMasks[target])])
                 & position.allPieces[other];
             attackers = orthogonalEnemies & position.individualPieces[ROOK];
+            if constexpr(piece == KING) { if(attackers) { return nullptr; } }  
             writeMoves(target, ROOK);     
             
             // queens    
             attackers = (orthogonalEnemies | diagonalEnemies) & position.individualPieces[QUEEN];
+            if constexpr(piece == KING) { if(attackers) { return nullptr; } }  
             writeMoves(target, QUEEN);     
             
             // king 
@@ -295,26 +276,34 @@ namespace spezi
     }
 
     template<Color color>
-    MoveAddress allMoves(Position & position, MoveAddress nextMove)
+    MoveAddress allMoves(Position & position, MilliSquare & evaluation, MoveAddress nextMove)
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
+        evaluation = 0;
 
-        nextMove = generateCapturesOf<QUEEN, other>(position, nextMove);
-        nextMove = generateCapturesOf<ROOK, other>(position, nextMove);
-        nextMove = generateCapturesOf<BISHOP, other>(position, nextMove);
-        nextMove = generateCapturesOf<KNIGHT, other>(position, nextMove);
-        nextMove = generateCapturesOf<PAWN, other>(position, nextMove);
+        if(generateCapturesOf<KING, other>(position, evaluation, nextMove) == nullptr)
+        {
+            evaluation = 1000 * PawnUnit;
+            nextMove[CAPTURED] = NULL_PIECE;
+            return nextMove;
+        }
 
-        nextMove = generateNonCapturesBy<PAWN, color>(position, nextMove);  
-        nextMove = generateNonCapturesBy<KNIGHT, color>(position, nextMove);
-        nextMove = generateNonCapturesBy<BISHOP, color>(position, nextMove);
-        nextMove = generateNonCapturesBy<ROOK, color>(position, nextMove);
-        nextMove = generateNonCapturesBy<QUEEN, color>(position, nextMove);
-        nextMove = generateNonCapturesBy<KING, color>(position, nextMove);
+        nextMove = generateCapturesOf<QUEEN, other>(position, evaluation, nextMove);
+        nextMove = generateCapturesOf<ROOK, other>(position, evaluation, nextMove);
+        nextMove = generateCapturesOf<BISHOP, other>(position, evaluation, nextMove);
+        nextMove = generateCapturesOf<KNIGHT, other>(position, evaluation, nextMove);
+        nextMove = generateCapturesOf<PAWN, other>(position, evaluation, nextMove);
+
+        nextMove = generateNonCapturesBy<PAWN, color>(position, evaluation, nextMove);  
+        nextMove = generateNonCapturesBy<KNIGHT, color>(position, evaluation, nextMove);
+        nextMove = generateNonCapturesBy<BISHOP, color>(position, evaluation, nextMove);
+        nextMove = generateNonCapturesBy<ROOK, color>(position, evaluation, nextMove);
+        nextMove = generateNonCapturesBy<QUEEN, color>(position, evaluation, nextMove);
+        nextMove = generateNonCapturesBy<KING, color>(position, evaluation, nextMove);
         
-        *nextMove = NULL_SQUARE; nextMove[CAPTURED] = NULL_PIECE;
+        nextMove[CAPTURED] = NULL_PIECE;
         return nextMove;
     }
 
-    void prettyPrint(MoveAddress moveAddress);
+    void prettyPrint(MoveAddress firstMove, MoveAddress lastMove);
 }

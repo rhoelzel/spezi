@@ -25,7 +25,8 @@ template<Color color>
 void bruteForce(Position & p, int depth)
 {
     auto const firstMove = moveList.data() + depth * OnePlyMaxSize;
-    auto const lastMove = allMoves<color>(p, firstMove);  
+    MilliSquare evaluation;
+    auto const lastMove = allMoves<color>(p, evaluation, firstMove);  
 
     counter += (lastMove-firstMove) / MoveSize;
 
@@ -78,10 +79,30 @@ int main(int argc, char** argv)
     bruteForce<WHITE>(p, 0);
     
     prettyPrint(p);
-    allMoves<WHITE>(p, moveList.data());
 
-    prettyPrint(moveList.data());
+    MilliSquare evaluation = 0;
+    auto const firstMove = moveList.data();
+    auto lastMove = allMoves<WHITE>(p, evaluation, firstMove);
+    std::cout<<"evaluation: "<<milliToPawnUnit(evaluation+((lastMove-firstMove)/MoveSize)<<1024)<<std::endl;
+
+    prettyPrint(firstMove, lastMove);
     std::cout<<"Nodes: "<<counter<<std::endl;
     
+    p = StartPosition;
+    
+    Square e2e4[MoveSize] ={e2, e4, PAWN, NULL_PIECE, NULL_PIECE}; 
+    Square c7c5[MoveSize] ={c7, c5, PAWN, NULL_PIECE, NULL_PIECE}; 
+
+    evaluation = 0;
+    move<WHITE, NON_CAPTURE>(p, &e2e4[0]);
+    prettyPrint(p);
+    allMoves<WHITE>(p, evaluation, moveList.data());
+    std::cout<<"evaluation white: "<<milliToPawnUnit(evaluation)<<std::endl;
+    
+    evaluation = 0;
+    move<BLACK, NON_CAPTURE>(p, &c7c5[0]);
+    prettyPrint(p);
+    allMoves<BLACK>(p, evaluation, moveList.data());
+    std::cout<<"evaluation black: "<<milliToPawnUnit(evaluation)<<std::endl;
 }
     
