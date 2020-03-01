@@ -418,6 +418,8 @@ namespace spezi
     template<Color color, Piece piece>
     BitBoard Position::generateCaptureSquares(Square const origin) const
     {
+        auto constexpr other = (color == WHITE ? BLACK : WHITE);
+
         BitBoard reachable { EMPTY };
 
         if constexpr(piece == PAWN)
@@ -454,7 +456,6 @@ namespace spezi
             reachable = KingAttacks[origin];
         }
 
-        auto constexpr other = (color == WHITE ? BLACK : WHITE);
         return reachable & allPieces[other];
     }
 
