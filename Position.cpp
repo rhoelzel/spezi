@@ -431,14 +431,22 @@ namespace spezi
         }
         
         if constexpr(piece == BISHOP || piece == QUEEN)
-        {
-            reachable = DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])];
+        {  
+            // pext is somewhat expensive: check diagonals first
+            if(Diagonals[origin] & allPieces[other] & individualPieces[piece])
+            {
+                reachable = DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])];
+            }
         }
         
         if constexpr(piece == ROOK || piece == QUEEN)
         {
-            reachable |= (RankAttacks[origin][pext(~empty, RankMasks[origin])]
-                        | FileAttacks[origin][pext(~empty, FileMasks[origin])]);        
+            // pext is somewhat expensive: check diagonals first
+            if(RanksAndFiles[origin] & allPieces[other] & individualPieces[piece])
+            {
+                reachable |= (RankAttacks[origin][pext(~empty, RankMasks[origin])]
+                            | FileAttacks[origin][pext(~empty, FileMasks[origin])]);
+            }        
         }
 
         if constexpr(piece == KING)
