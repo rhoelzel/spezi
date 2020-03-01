@@ -166,7 +166,7 @@ namespace spezi::detail
         return a*x4+b*x3+c*x2+d*x+e;
     }
 
-    template<Piece piece, Color color>
+    template<Color color, Piece piece>
     auto constexpr averageMobilities()
     {      
         std::array<std::array<int, MaxBoardPopulation-2>, NumberOfSquares> result {};
