@@ -68,53 +68,6 @@ namespace spezi
         }   
     } 
 
-    template<Color color, Piece attackingPiece, Piece attackedPiece>
-    class CaptureResetter
-    {
-    public:
-        CaptureResetter(Position & position)
-        : p(position), e(position.empty), 
-          a(position.allPieces[color]),
-          i1(position.individualPieces[attackingPiece]),
-          i2(position.individualPieces[attackedPiece])
-        {}
-        ~CaptureResetter()
-        {
-            p.empty = e;
-            p.allPieces[color] = a;
-            p.individualPieces[attackingPiece] = i1;
-            p.individualPieces[attackedPiece] = i2;
-        }
-    private:
-        Position & p;
-        BitBoard const e;
-        BitBoard const a;
-        BitBoard const i1;
-        BitBoard const i2;
-    };
-    
-    template<Color color, Piece piece>
-    class NonCaptureResetter
-    {
-    public:
-        NonCaptureResetter(Position & position)
-        : p(position), e(position.empty), 
-          a(position.allPieces[color]),
-          i(position.individualPieces[piece])
-          {}
-        ~NonCaptureResetter()
-        {
-            p.empty = e;
-            p.allPieces[color] = a;
-            p.individualPieces[piece] = i;
-        }
-    private:
-        Position & p;
-        BitBoard const e;
-        BitBoard const a;
-        BitBoard const i;
-    };
-
     Position::Position(std::string fen)
     {
         std::istringstream sectionStream(fen);
@@ -327,11 +280,10 @@ namespace spezi
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
-        auto const resetter = CaptureResetter<color, attackingPiece, attackedPiece>(*this);
-    
         auto targets = allPieces[other] & individualPieces[attackedPiece];
-         
-        while(targets)
+        bool inWindow = true;
+
+        while(targets && inWindow)
         {
             auto const target = ffs(targets);
             auto const to = A1 << target;
@@ -344,7 +296,7 @@ namespace spezi
             auto attackers = generateCaptureSquares<other, attackingPiece>(target) 
                             & individualPieces[attackingPiece];
 
-            while(attackers)
+            while(attackers && inWindow)
             {
                 auto const attacker = ffs(attackers);
                 auto const from = A1 << attacker;
@@ -357,50 +309,24 @@ namespace spezi
                     if(from & promotionRank)
                     {
                         individualPieces[PAWN] ^= to;
-                        individualPieces[QUEEN] ^= to;
-                        if(!evaluate<other, depth-1>())
+                        for(int promotedPiece = static_cast<int>(QUEEN); 
+                            promotedPiece != static_cast<int>(PAWN) && inWindow;
+                            --promotedPiece)
                         {
-                            individualPieces[QUEEN] ^= to;
-                            return false;
+                            individualPieces[promotedPiece] ^= to;
+                            inWindow = evaluate<other, depth-1>();
+                            individualPieces[promotedPiece] ^= to;
                         }
-                        individualPieces[QUEEN] ^= to;
-                        individualPieces[ROOK] ^= to;
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[ROOK] ^= to;
-                            return false;
-                        }
-                        individualPieces[ROOK] ^= to;    
-                        individualPieces[BISHOP] ^= to;
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[BISHOP] ^= to;
-                            return false;
-                        }
-                        individualPieces[BISHOP] ^= to;    
-                        individualPieces[KNIGHT] ^= to;
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[KNIGHT] ^= to;
-                            return false;
-                        }
-                        individualPieces[KNIGHT] ^= to;
                         individualPieces[PAWN] ^= to;
                     }
                     else
                     {
-                        if(!evaluate<other, depth-1>())
-                        {
-                            return false;
-                        }
+                        inWindow = evaluate<other, depth-1>();
                     }                     
                 }
                 else
                 {
-                    if(!evaluate<other, depth-1>())
-                    {
-                        return false;
-                    }
+                    inWindow = evaluate<other, depth-1>();
                 }
                 
                 allPieces[color] ^= from;
@@ -425,11 +351,10 @@ namespace spezi
         auto constexpr other = (color == WHITE ? BLACK : WHITE); 
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
-        auto const resetter = NonCaptureResetter<color, piece>(*this);
-        
         auto movers = allPieces[color] & individualPieces[piece];
+        bool inWindow = true;
 
-        while(movers)
+        while(movers && inWindow)
         {
             auto const mover = ffs(movers);
             auto const from = A1 << mover;
@@ -439,7 +364,7 @@ namespace spezi
 
             auto targets = generateNonCaptureSquares<color, piece>(mover);
 
-            while(targets)
+            while(targets && inWindow)
             {
                 auto const target = ffs(targets);
                 auto const to = A1 << target;
@@ -451,52 +376,26 @@ namespace spezi
                 {
                     if(from & promotionRank)
                     {
-                        individualPieces[QUEEN] ^= to;
-                        if(!evaluate<other, depth-1>())
+                        for(int promotedPiece = static_cast<int>(QUEEN); 
+                            promotedPiece != static_cast<int>(PAWN) && inWindow;
+                            --promotedPiece)
                         {
-                            individualPieces[QUEEN] ^= to;
-                            return false;
+                            individualPieces[promotedPiece] ^= to;
+                            inWindow = evaluate<other, depth-1>();
+                            individualPieces[promotedPiece] ^= to;
                         }
-                        individualPieces[QUEEN] ^= to;
-                        individualPieces[ROOK] ^= to;    
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[ROOK] ^= to;
-                            return false;
-                        }
-                        individualPieces[ROOK] ^= to;    
-                        individualPieces[BISHOP] ^= to;    
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[BISHOP] ^= to;
-                            return false;
-                        }
-                        individualPieces[BISHOP] ^= to;    
-                        individualPieces[KNIGHT] ^= to;    
-                        if(!evaluate<other, depth-1>())
-                        {
-                            individualPieces[KNIGHT] ^= to;
-                            return false;
-                        }
-                        individualPieces[KNIGHT] ^= to;
                     }
                     else
                     {
                         individualPieces[PAWN] ^= to;
-                        if(!evaluate<other, depth-1>())
-                        {
-                            return false;
-                        }
+                        inWindow = evaluate<other, depth-1>();
                         individualPieces[PAWN] ^= to;
                     }                     
                 }
                 else
                 {
                     individualPieces[piece] ^= to;
-                    if(!evaluate<other, depth-1>())
-                    {
-                        return false;
-                    }
+                    inWindow = evaluate<other, depth-1>();
                     individualPieces[piece] ^= to;
                 }
 

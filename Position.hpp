@@ -66,7 +66,5 @@ namespace spezi
         int halfMoves = 0;
         int fullMoves = 0;
 
-        template<Color color, Piece piece> friend class NonCaptureResetter;
-        template<Color color, Piece attackingPiece, Piece attackedPiece> friend class CaptureResetter;
     };
 }
