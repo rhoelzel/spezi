@@ -6,10 +6,18 @@
 #include "Piece.hpp"
 #include "Square.hpp"
 
+#include <limits>
 #include <string>
 
 namespace spezi
 {
+    auto constexpr MAX_DEPTH = 8;
+    auto constexpr MAX_QUIESCENCE_DEPTH = 24;
+    auto constexpr MAX_QUIESCENCE_NODES = 1000000000;
+    auto constexpr WHITE_WIN = std::numeric_limits<MilliSquare>::max();
+    auto constexpr DRAW = 0;
+    auto constexpr BLACK_WIN = std::numeric_limits<MilliSquare>::min();
+
     class Position
     {
     public:
@@ -26,22 +34,24 @@ namespace spezi
 
     private:
         template<Color color, int depth>
-        bool evaluate();
+        void evaluate();
 
-        template<Color color>
-        bool quiescence();
+        template<Color color, int depth>
+        void quiescence();
+
+        MilliSquare staticEvaluation();
 
         template<Color Color>
         bool inCheck() const;
 
-        template<Color color, Piece attackingPiece, Piece attackedPiece, int depth>
-        bool evaluateCaptures();
+        template<Color color, int depth>
+        void evaluateCaptures();
 
         template<Color color, Piece piece, int depth>
-        bool evaluateNonCaptures();
+        void evaluateNonCaptures();
 
-        template<Color color, Piece piece>
-        BitBoard generateCaptureSquares(Square origin) const;
+        template<Color Color, int depth>
+        void updateEval();
 
         template<Color color, Piece piece>
         BitBoard generateNonCaptureSquares(Square origin) const;
@@ -66,5 +76,6 @@ namespace spezi
         int halfMoves = 0;
         int fullMoves = 0;
 
+        MilliSquare evaluationAtDepth[MAX_DEPTH + MAX_QUIESCENCE_DEPTH];
     };
 }

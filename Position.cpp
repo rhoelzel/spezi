@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <sstream>
+#include <iostream>
 
 namespace spezi
 {
@@ -66,6 +67,18 @@ namespace spezi
             }
             return retval;
         }   
+
+        template<Color color, Piece piece>
+        static inline MilliSquare staticPieceEvaluation(BitBoard pieces, int const p)
+        {
+            MilliSquare value = 0;
+            while(pieces)
+            {   
+                value += StaticMobilities<color, piece>[ffs(pieces)][p];
+                pieces &= pieces - 1;
+            }
+            return value;
+        }
     } 
 
     Position::Position(std::string fen)
@@ -196,165 +209,279 @@ namespace spezi
     }   
 
     template<Color color, int depth>
-    bool Position::evaluate()
+    void Position::evaluate()
     {
         if constexpr (depth == 0)
         {
-            return quiescence<color>();
+            quiescence<color, depth>();
+            return;
         }
         else
         {
             // illegal if side to move is in check
             if(inCheck<color>())
             {
-                return true;
+                return;
             }
-
-            return evaluateCaptures<color, PAWN, QUEEN, depth>()
-                && evaluateCaptures<color, KNIGHT, QUEEN, depth>()
-                && evaluateCaptures<color, BISHOP, QUEEN, depth>()
-                && evaluateCaptures<color, ROOK, QUEEN, depth>()
-                && evaluateCaptures<color, QUEEN, QUEEN, depth>()
-                && evaluateCaptures<color, KING, QUEEN, depth>()
-                && evaluateCaptures<color, PAWN, ROOK, depth>()
-                && evaluateCaptures<color, KNIGHT, ROOK, depth>()
-                && evaluateCaptures<color, BISHOP, ROOK, depth>()
-                && evaluateCaptures<color, ROOK, ROOK, depth>()
-                && evaluateCaptures<color, QUEEN, ROOK, depth>()
-                && evaluateCaptures<color, KING, ROOK, depth>()
-                && evaluateCaptures<color, PAWN, BISHOP, depth>()
-                && evaluateCaptures<color, KNIGHT, BISHOP, depth>()
-                && evaluateCaptures<color, BISHOP, BISHOP, depth>()
-                && evaluateCaptures<color, ROOK, BISHOP, depth>()
-                && evaluateCaptures<color, QUEEN, BISHOP, depth>()
-                && evaluateCaptures<color, KING, BISHOP, depth>()
-                && evaluateCaptures<color, PAWN, KNIGHT, depth>()
-                && evaluateCaptures<color, KNIGHT, KNIGHT, depth>()
-                && evaluateCaptures<color, BISHOP, KNIGHT, depth>()
-                && evaluateCaptures<color, ROOK, KNIGHT, depth>()
-                && evaluateCaptures<color, QUEEN, KNIGHT, depth>()
-                && evaluateCaptures<color, KING, KNIGHT, depth>()
-                && evaluateCaptures<color, PAWN, PAWN, depth>()
-                && evaluateCaptures<color, KNIGHT, PAWN, depth>()
-                && evaluateCaptures<color, BISHOP, PAWN, depth>()
-                && evaluateCaptures<color, ROOK, PAWN, depth>()
-                && evaluateCaptures<color, QUEEN, PAWN, depth>()
-                && evaluateCaptures<color, KING, PAWN, depth>()
-                && evaluateNonCaptures<color, PAWN, depth>()
-                && evaluateNonCaptures<color, KNIGHT, depth>()
-                && evaluateNonCaptures<color, BISHOP, depth>()
-                && evaluateNonCaptures<color, ROOK, depth>()
-                && evaluateNonCaptures<color, QUEEN, depth>()
-                && evaluateNonCaptures<color, KING, depth>()
-                && ++halfMoves;    
+            
+            auto constexpr initial = color == WHITE ? BLACK_WIN : WHITE_WIN;
+            evaluationAtDepth[MAX_DEPTH - 1 - depth] = initial;
+    
+            evaluateCaptures<color, depth>();
+            evaluateNonCaptures<color, PAWN, depth>();
+            evaluateNonCaptures<color, KNIGHT, depth>();
+            evaluateNonCaptures<color, BISHOP, depth>();
+            evaluateNonCaptures<color, ROOK, depth>();
+            evaluateNonCaptures<color, QUEEN, depth>();
+            evaluateNonCaptures<color, KING, depth>();
+            ++halfMoves;    
         }
     }
 
-    template<Color color>
-    bool Position::quiescence()
-    {
-        auto result = inCheck<color>();
-        if(!result)
+    template<Color color, int depth>
+    void Position::quiescence()
+    {    
+        if(!inCheck<color>())
         {
             ++halfMoves;
+           /* auto const value = staticEvaluation();
+            if constexpr (color == WHITE)
+            {
+                if(value > evaluationAtDepth[MAX_DEPTH - 1 - depth])
+                {
+                    evaluationAtDepth[MAX_DEPTH - 1 - depth] = value;
+                }
+            }
+            else
+            {
+                if(value > evaluationAtDepth[MAX_DEPTH - 1 - depth])
+                {
+                    evaluationAtDepth[MAX_DEPTH - 1 - depth] = value;
+                }
+            }*/
+            //std::cout<<getBoardDisplay();
+            //std::cout<<"static value (at 0): "<<milliToPawnUnit(value)<<std::endl;
         }
-        return true;
+    }
+
+    MilliSquare Position::staticEvaluation()
+    {
+        auto const p = populationIndex(popcount(~empty));
+        auto value = StaticMobilities<WHITE, KING>[ffs(allPieces[WHITE] & individualPieces[KING])][p];
+        value -= StaticMobilities<BLACK, KING>[ffs(allPieces[BLACK] & individualPieces[KING])][p];
+
+        value += staticPieceEvaluation<WHITE, QUEEN>(allPieces[WHITE] & individualPieces[QUEEN], p);
+        value -= staticPieceEvaluation<BLACK, QUEEN>(allPieces[BLACK] & individualPieces[QUEEN], p);
+        
+        value += staticPieceEvaluation<WHITE, ROOK>(allPieces[WHITE] & individualPieces[ROOK], p);
+        value -= staticPieceEvaluation<BLACK, ROOK>(allPieces[BLACK] & individualPieces[ROOK], p);
+        
+        value += staticPieceEvaluation<WHITE, BISHOP>(allPieces[WHITE] & individualPieces[BISHOP], p);
+        value -= staticPieceEvaluation<BLACK, BISHOP>(allPieces[BLACK] & individualPieces[BISHOP], p);
+        
+        value += staticPieceEvaluation<WHITE, KNIGHT>(allPieces[WHITE] & individualPieces[KNIGHT], p);
+        value -= staticPieceEvaluation<BLACK, KNIGHT>(allPieces[BLACK] & individualPieces[KNIGHT], p);
+       
+        value += staticPieceEvaluation<WHITE, PAWN>(allPieces[WHITE] & individualPieces[PAWN], p);
+        value -= staticPieceEvaluation<BLACK, PAWN>(allPieces[BLACK] & individualPieces[PAWN], p);
+       
+        return value;
     }
 
     template<Color color>
     bool Position::inCheck() const
     {
+        auto constexpr other = (color == WHITE ? BLACK : WHITE);
+        
         auto const king = ffs(allPieces[color] & individualPieces[KING]);
-        // generate attackers by finding own color attacks from king square
-        return (generateCaptureSquares<color, PAWN>(king) & individualPieces[PAWN])
-                || (generateCaptureSquares<color, KNIGHT>(king) & individualPieces[KNIGHT])
-                || (generateCaptureSquares<color, BISHOP>(king) & individualPieces[BISHOP])
-                || (generateCaptureSquares<color, ROOK>(king) & individualPieces[ROOK])
-                || (generateCaptureSquares<color, QUEEN>(king) & individualPieces[QUEEN])
-                || (generateCaptureSquares<color, KING>(king) & individualPieces[KING]);
+        
+        auto const diagonalAttacks = DiagonalAttacks[king][pext(~empty, DiagonalMasks[king])];
+        auto const pawnAttacks = PawnAttacks<color>[king] & allPieces[other] & individualPieces[PAWN];
+        auto const rankAttacks = RankAttacks[king][pext(~empty, RankMasks[king])];
+        auto const knightAttacks = KnightAttacks[king] & allPieces[other] & individualPieces[KNIGHT];
+        auto const fileAttacks = FileAttacks[king][pext(~empty, FileMasks[king])];
+        auto const bishopAttacks = diagonalAttacks & allPieces[other] & individualPieces[BISHOP];
+        auto const rookAttacks = (rankAttacks | fileAttacks) & allPieces[other] & individualPieces[ROOK]; 
+        auto const queenAttacks = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[other] & individualPieces[QUEEN];
+        
+        return pawnAttacks | knightAttacks | bishopAttacks | rookAttacks | queenAttacks; 
     }
 
-    template<Color color, Piece attackingPiece, Piece attackedPiece, int depth>
-    bool Position::evaluateCaptures()
+    template<Color color, int depth>
+    void Position::evaluateCaptures()
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE);
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
-        auto targets = allPieces[other] & individualPieces[attackedPiece];
-        bool inWindow = true;
-
-        while(targets && inWindow)
+        // MVV-LVA: queens first
+        for(auto attackedPiece = static_cast<int>(QUEEN); attackedPiece >= static_cast<int>(PAWN); --attackedPiece)
         {
-            auto const target = ffs(targets);
-            auto const to = A1 << target;
-            allPieces[color] ^= to;
-            allPieces[other] ^= to;
-            individualPieces[attackingPiece] ^= to;
-            individualPieces[attackedPiece] ^= to;
-
-            // generate attackers by finding reverse color attacks from target square
-            auto attackers = generateCaptureSquares<other, attackingPiece>(target) 
-                            & individualPieces[attackingPiece];
-
-            while(attackers && inWindow)
+            auto targets = allPieces[other] & individualPieces[attackedPiece];
+            while(targets)
             {
-                auto const attacker = ffs(attackers);
-                auto const from = A1 << attacker;
-                allPieces[color] ^= from;
-                individualPieces[attackingPiece] ^= from;
-                empty ^= from;
+                auto const target = ffs(targets);
+                auto const to = A1 << target;
+                allPieces[color] ^= to;
+                allPieces[other] ^= to;
+                individualPieces[attackedPiece] ^= to;
 
-                if constexpr(attackingPiece == PAWN)
+                // compute here, use later (hopefully this will speed up things)
+                auto const diagonalAttacks = DiagonalAttacks[target][pext(~empty, DiagonalMasks[target])];
+
+                // generate attackers by finding reverse color attacks from target square
+                // MVV-LVA: pawns first
+                auto attackers = PawnAttacks<other>[target] & allPieces[color] & individualPieces[PAWN];
+                while(attackers)
                 {
+                    auto const attacker = ffs(attackers);
+                    auto const from = A1 << attacker;
+
+                    allPieces[color] ^= from;
+                    individualPieces[PAWN] ^= from;
+                    empty ^= from;
+
                     if(from & promotionRank)
                     {
-                        individualPieces[PAWN] ^= to;
                         for(int promotedPiece = static_cast<int>(QUEEN); 
-                            promotedPiece != static_cast<int>(PAWN) && inWindow;
+                            promotedPiece != static_cast<int>(PAWN);
                             --promotedPiece)
                         {
                             individualPieces[promotedPiece] ^= to;
-                            inWindow = evaluate<other, depth-1>();
+                            evaluate<other, depth-1>();
+                            updateEval<color, depth>();                            
                             individualPieces[promotedPiece] ^= to;
                         }
-                        individualPieces[PAWN] ^= to;
                     }
                     else
-                    {
-                        inWindow = evaluate<other, depth-1>();
-                    }                     
-                }
-                else
-                {
-                    inWindow = evaluate<other, depth-1>();
-                }
+                    { 
+                        individualPieces[PAWN] ^= to;
+                        evaluate<other, depth-1>();
+                        updateEval<color, depth>();  
+                        individualPieces[PAWN] ^= to;                          
+                    }
                 
-                allPieces[color] ^= from;
-                individualPieces[attackingPiece] ^= from;
-                empty ^= from;
-                attackers &= attackers - 1;
+                    allPieces[color] ^= from;
+                    individualPieces[PAWN] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                }
+
+                // compute here, use later (hopefully this will speed up things)
+                auto const rankAttacks = RankAttacks[target][pext(~empty, RankMasks[target])];
+
+                attackers = KnightAttacks[target] & allPieces[color] & individualPieces[KNIGHT];
+                individualPieces[KNIGHT] ^= to;
+                while(attackers)
+                {
+                    auto const attacker = ffs(attackers);
+                    auto const from = A1 << attacker;
+                    allPieces[color] ^= from;
+                    individualPieces[KNIGHT] ^= from;
+                    empty ^= from;
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();  
+                    allPieces[color] ^= from;
+                    individualPieces[KNIGHT] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                }
+                individualPieces[KNIGHT] ^= to;
+
+                // compute here, use later (hopefully this will speed up things)
+                auto const fileAttacks = FileAttacks[target][pext(~empty, RankMasks[target])];
+
+                //  use it
+                attackers = diagonalAttacks & allPieces[color] & individualPieces[BISHOP];
+                individualPieces[BISHOP] ^= to;
+                while(attackers)
+                {
+                    auto const attacker = ffs(attackers);
+                    auto const from = A1 << attacker;
+                    allPieces[color] ^= from;
+                    individualPieces[BISHOP] ^= from;
+                    empty ^= from;
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();  
+                    allPieces[color] ^= from;
+                    individualPieces[BISHOP] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                }
+                individualPieces[BISHOP] ^= to;
+
+                //  use it
+                attackers = (rankAttacks | fileAttacks) & allPieces[color] & individualPieces[ROOK];
+                individualPieces[ROOK] ^= to;
+                while(attackers)
+                {
+                    auto const attacker = ffs(attackers);
+                    auto const from = A1 << attacker;
+                    allPieces[color] ^= from;
+                    individualPieces[ROOK] ^= from;
+                    empty ^= from;
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();  
+                    allPieces[color] ^= from;
+                    individualPieces[ROOK] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                }
+                individualPieces[ROOK] ^= to;
+
+                //  use it
+                attackers = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[color] & individualPieces[QUEEN];
+                individualPieces[QUEEN] ^= to;
+                while(attackers)
+                {
+                    auto const attacker = ffs(attackers);
+                    auto const from = A1 << attacker;
+                    allPieces[color] ^= from;
+                    individualPieces[QUEEN] ^= from;
+                    empty ^= from;
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();  
+                    allPieces[color] ^= from;
+                    individualPieces[QUEEN] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                }
+                individualPieces[QUEEN] ^= to;
+
+                
+                auto const attacker = ffs(KingAttacks[target] & allPieces[color] & individualPieces[KING]);
+                if(attacker != NULL_SQUARE)
+                {
+                    individualPieces[KING] ^= to;
+                    auto const from = A1 << attacker;
+                    allPieces[color] ^= from;
+                    individualPieces[KING] ^= from;
+                    empty ^= from;
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();  
+                    allPieces[color] ^= from;
+                    individualPieces[KING] ^= from;
+                    empty ^= from;
+                    attackers &= attackers - 1;
+                    individualPieces[KING] ^= to;
+                }
+
+                allPieces[color] ^= to;
+                allPieces[other] ^= to;
+                individualPieces[attackedPiece] ^= to;
+                targets &= targets - 1;
             }
-
-            allPieces[color] ^= to;
-            allPieces[other] ^= to;
-            individualPieces[attackingPiece] ^= to;
-            individualPieces[attackedPiece] ^= to;
-            targets &= targets - 1;
         }
-
-        return true;
     }
 
     template<Color color, Piece piece, int depth>
-    bool Position::evaluateNonCaptures()
+    void Position::evaluateNonCaptures()
     {
         auto constexpr other = (color == WHITE ? BLACK : WHITE); 
         auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
         auto movers = allPieces[color] & individualPieces[piece];
-        bool inWindow = true;
-
-        while(movers && inWindow)
+        
+        while(movers)
         {
             auto const mover = ffs(movers);
             auto const from = A1 << mover;
@@ -364,7 +491,7 @@ namespace spezi
 
             auto targets = generateNonCaptureSquares<color, piece>(mover);
 
-            while(targets && inWindow)
+            while(targets)
             {
                 auto const target = ffs(targets);
                 auto const to = A1 << target;
@@ -377,25 +504,28 @@ namespace spezi
                     if(from & promotionRank)
                     {
                         for(int promotedPiece = static_cast<int>(QUEEN); 
-                            promotedPiece != static_cast<int>(PAWN) && inWindow;
+                            promotedPiece != static_cast<int>(PAWN);
                             --promotedPiece)
                         {
                             individualPieces[promotedPiece] ^= to;
-                            inWindow = evaluate<other, depth-1>();
+                            evaluate<other, depth-1>();
+                            updateEval<color, depth>();                            
                             individualPieces[promotedPiece] ^= to;
                         }
                     }
                     else
                     {
                         individualPieces[PAWN] ^= to;
-                        inWindow = evaluate<other, depth-1>();
+                        evaluate<other, depth-1>();
+                        updateEval<color, depth>();                            
                         individualPieces[PAWN] ^= to;
                     }                     
                 }
                 else
                 {
                     individualPieces[piece] ^= to;
-                    inWindow = evaluate<other, depth-1>();
+                    evaluate<other, depth-1>();
+                    updateEval<color, depth>();                            
                     individualPieces[piece] ^= to;
                 }
 
@@ -411,54 +541,42 @@ namespace spezi
         }
 
         // castling, en passant?
-        
-        return true;
     }
 
-    template<Color color, Piece piece>
-    BitBoard Position::generateCaptureSquares(Square const origin) const
+    template<Color color, int depth>
+    void Position::updateEval()
     {
-        auto constexpr other = (color == WHITE ? BLACK : WHITE);
-
-        BitBoard reachable { EMPTY };
-
-        if constexpr(piece == PAWN)
+        /*if constexpr(depth==6)
+        {   
+            std::cout<<getBoardDisplay()<<std::endl;
+            std::cout<<"evaluation old:"<<milliToPawnUnit(evaluationAtDepth[MAX_DEPTH - depth -1])<<std::endl;
+        }*/
+        if constexpr(color == WHITE)
         {
-            reachable = PawnAttacks<color>[origin];        
-        }
-        
-        if constexpr(piece == KNIGHT)
-        {
-            reachable = KnightAttacks[origin];
-        }
-        
-        if constexpr(piece == BISHOP || piece == QUEEN)
-        {  
-            // pext is somewhat expensive: check diagonals first
-            if(Diagonals[origin] & allPieces[other] & individualPieces[piece])
+            if(evaluationAtDepth[MAX_DEPTH - depth - 1] < evaluationAtDepth[MAX_DEPTH - depth])
             {
-                reachable = DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])];
+                evaluationAtDepth[MAX_DEPTH - depth - 1] = evaluationAtDepth[MAX_DEPTH - depth];
+       /*         if(depth>4)
+                {
+                    std::cout<<getBoardDisplay();
+                    std::cout<<"new high white: "<< milliToPawnUnit(evaluationAtDepth[MAX_DEPTH-depth-1])<<std::endl;
+                }*/
             }
         }
-        
-        if constexpr(piece == ROOK || piece == QUEEN)
+        else
         {
-            // pext is somewhat expensive: check diagonals first
-            if(RanksAndFiles[origin] & allPieces[other] & individualPieces[piece])
+            if(evaluationAtDepth[MAX_DEPTH - depth - 1] > evaluationAtDepth[MAX_DEPTH - depth])
             {
-                reachable |= (RankAttacks[origin][pext(~empty, RankMasks[origin])]
-                            | FileAttacks[origin][pext(~empty, FileMasks[origin])]);
-            }        
+                evaluationAtDepth[MAX_DEPTH - depth - 1] = evaluationAtDepth[MAX_DEPTH - depth];
+             /*   if(depth > 4)
+                {
+                    std::cout<<getBoardDisplay();
+                    std::cout<<"new low black: "<< milliToPawnUnit(evaluationAtDepth[MAX_DEPTH-depth-1])<<std::endl;
+                }*/
+            }
         }
-
-        if constexpr(piece == KING)
-        {
-            reachable = KingAttacks[origin];
-        }
-
-        return reachable & allPieces[other];
     }
-
+    
     template<Color color, Piece piece>
     BitBoard Position::generateNonCaptureSquares(Square const origin) const
     {
