@@ -25,8 +25,14 @@ namespace spezi
     auto constexpr DiagonalAttacks = detail::collectBitBoards<detail::diagonalAttack>();    
     auto constexpr DiagonalMasks = detail::collectBitBoards(detail::diagonalMask);
     BitBoardArray constexpr KnightAttacks = detail::collectBitBoards(detail::knightAttack);
-    template<Color color> 
-    auto constexpr PawnAttacks = detail::collectBitBoards(detail::pawnAttack<color>);
-    template<Color color> 
-    auto constexpr PawnPushes = detail::collectBitBoards(detail::pawnPush<color>);
+    BitBoardArray constexpr PawnAttacks[NumberOfColors] =
+    {
+        detail::collectBitBoards(detail::pawnAttack<WHITE>),
+        detail::collectBitBoards(detail::pawnAttack<BLACK>)
+    }; 
+    BitBoardArray constexpr PawnPushes[NumberOfColors] = 
+    {
+        detail::collectBitBoards(detail::pawnPush<WHITE>),
+        detail::collectBitBoards(detail::pawnPush<BLACK>)
+    };
 }

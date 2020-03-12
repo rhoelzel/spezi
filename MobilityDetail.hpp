@@ -39,7 +39,7 @@ namespace spezi::detail
         else if constexpr(piece == PAWN) 
         {
             // pawns be white here without loss of generality
-            result = (PawnAttacks<WHITE>[square] & bb) | (PawnPushes<WHITE>[square] & ~bb);
+            result = (PawnAttacks[WHITE][square] & bb) | (PawnPushes[WHITE][square] & ~bb);
             result |= (result << SquaresPerRank) & ~bb & RANKS[3] & FILES[square % SquaresPerRank];
         }
         else

@@ -6,17 +6,27 @@
 #include "Piece.hpp"
 #include "Square.hpp"
 
+#include <array>
 #include <limits>
 #include <string>
 
 namespace spezi
 {
     auto constexpr MAX_DEPTH = 8;
-    auto constexpr MAX_QUIESCENCE_DEPTH = 24;
-    auto constexpr MAX_QUIESCENCE_NODES = 1000000000;
-    auto constexpr WHITE_WIN = std::numeric_limits<MilliSquare>::max();
-    auto constexpr DRAW = 0;
-    auto constexpr BLACK_WIN = std::numeric_limits<MilliSquare>::min();
+    auto constexpr MAX_QUIESCENCE_DEPTH = 64;
+    
+    MilliSquare constexpr LOSS[NumberOfColors] = {-123456789, 123456789};   
+    MilliSquare constexpr DRAW = 0;
+
+    struct EvaluationStatistics
+    {
+        MilliSquare evaluation;
+        int maximumDepth;
+        int maximumQuiescenceDepth;
+        int64_t numberOfNodes;
+        int64_t numberOfQuiescenceNodes;
+        float seconds;
+    };
 
     class Position
     {
@@ -29,31 +39,23 @@ namespace spezi
 
         std::string getFen() const;
         std::string getBoardDisplay() const;
-        
-        MilliSquare evaluate(int depth);
+
+        EvaluationStatistics evaluateRecursively(int depth);
+        MilliSquare evaluateStatically();        
 
     private:
-        template<Color color, int depth>
-        void evaluate();
+        void evaluate(int depth);
 
-        template<Color color, int depth>
-        void quiescence();
+        bool isAttacked(Square square);
 
-        MilliSquare staticEvaluation();
+        void evaluateCaptures(int depth);
 
-        template<Color Color>
-        bool inCheck() const;
+        template<Piece piece>
+        void evaluateNonCaptures(int depth);
 
-        template<Color color, int depth>
-        void evaluateCaptures();
+        void updateEval(int depth);
 
-        template<Color color, Piece piece, int depth>
-        void evaluateNonCaptures();
-
-        template<Color Color, int depth>
-        void updateEval();
-
-        template<Color color, Piece piece>
+        template<Piece piece>
         BitBoard generateNonCaptureSquares(Square origin) const;
 
         BitBoard empty = A3|B3|C3|D3|E3|F3|G3|H3|A4|B4|C4|D4|E4|F4|G4|H4
@@ -76,6 +78,12 @@ namespace spezi
         int halfMoves = 0;
         int fullMoves = 0;
 
-        MilliSquare evaluationAtDepth[MAX_DEPTH + MAX_QUIESCENCE_DEPTH];
+        Color sideToMove = WHITE;
+        BitBoard enPassant = EMPTY;
+
+        int maxDepth = 0;
+
+        std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> evaluationAtDepth;
+        std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
     };
 }

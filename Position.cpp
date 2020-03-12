@@ -135,8 +135,31 @@ namespace spezi
 
         empty = ~(allPieces[WHITE] | allPieces[BLACK]);
 
+        if(sections[1] == "w")
+        {
+            sideToMove = WHITE;
+        }
+        else if(sections[1] == "b")
+        {
+            sideToMove = BLACK;
+        }
+        else
+        {
+            throw std::runtime_error("Invalid side-to-move character: " + sections[1]);
+        }
+
         halfMoves = std::stoi(sections[4]);
-        fullMoves = std::stoi(sections[5]);           
+        fullMoves = std::stoi(sections[5]);       
+
+        if(halfMoves < 0)
+        {
+            throw std::runtime_error("Illegal number of half moves since last pawn move or capture: " + sections[4]);
+        }
+
+        if(fullMoves < 0)
+        {
+            throw std::runtime_error("Illegal number of moves: " + sections[5]);
+        }
     }
 
     std::string Position::getFen() const
@@ -157,7 +180,9 @@ namespace spezi
         std::string space = " ";
         std::string newline = "\n";
 
-        std::string boardDisplay = "  a b c d e f g h" + newline;
+        std::string blackToMove = sideToMove == BLACK ? "  <<" : "";
+        std::string whiteToMove = sideToMove == WHITE ? "  <<" : "";
+        std::string boardDisplay = "  a b c d e f g h" + blackToMove + newline;
         boardDisplay += ul + bar + ur;
         for(int rank = 7; rank >= 0; --rank)
         {
@@ -169,102 +194,167 @@ namespace spezi
             boardDisplay += space + v + space + std::to_string(rank+1);
         }
         boardDisplay += newline + ll + bar + lr + newline;
-        boardDisplay += "  a b c d e f g h" + newline;
+        boardDisplay += "  a b c d e f g h" + whiteToMove + newline;
        
         return boardDisplay;
     }
 
-    MilliSquare Position::evaluate(int depth)
+    EvaluationStatistics Position::evaluateRecursively(int const depth)
     {
-        switch(depth)
+        if(depth > MAX_DEPTH)
         {
-            case 0:
-                evaluate<WHITE, 0>();
-                break;
-            case 1:
-                evaluate<WHITE, 1>();
-                break;
-            case 2:
-                evaluate<WHITE, 2>();
-                break;
-            case 3:
-                evaluate<WHITE, 3>();
-                break;
-            case 4:
-                evaluate<WHITE, 4>();
-                break;
-            case 5:
-                evaluate<WHITE, 5>();
-                break;
-            case 6:
-                evaluate<WHITE, 6>();
-                break;
-            case 7:
-                evaluate<WHITE, 7>();
-                break;
-            default:
-                break;
+            throw std::runtime_error("depth " + std::to_string(depth) + "exceeds maximum depth");
         }
-        return 0;
-    }   
 
-    template<Color color, int depth>
-    void Position::evaluate()
-    {
-        if constexpr (depth == 0)
+        EvaluationStatistics result;
+        for(auto currentMaxDepth = depth; currentMaxDepth != depth+1; ++currentMaxDepth)
         {
-            quiescence<color, depth>();
+            auto const start = std::chrono::steady_clock::now();
+            maxDepth = currentMaxDepth;
+
+            evaluationAtDepth = {};
+            numberOfNodesAtDepth = {};
+
+            sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+            evaluate(0);
+            sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+    
+            int64_t numberOfNodes = 0;
+            int64_t numberOfQuiescenceNodes = 0;
+            auto maximumQuiescenceDepth = 0;
+
+            for(auto d = 0; d < MAX_DEPTH + MAX_QUIESCENCE_DEPTH; ++d)
+            {
+                if(!numberOfNodesAtDepth[d])
+                {
+                    break;
+                }
+                
+                if(d >= currentMaxDepth)
+                {
+                    numberOfQuiescenceNodes += numberOfNodesAtDepth[d];
+                    maximumQuiescenceDepth = d;
+                }
+                numberOfNodes += numberOfNodesAtDepth[d];
+            }
+
+            auto const stop = std::chrono::steady_clock::now();
+            auto const duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+
+            result = 
+            {
+                evaluationAtDepth[0],
+                currentMaxDepth,
+                maximumQuiescenceDepth,
+                numberOfNodes,
+                numberOfQuiescenceNodes,
+                static_cast<float>(duration.count())/1e6f
+            };
+        }
+        return result;
+    }   
+}
+
+#include <iostream>
+
+namespace spezi
+{
+    void Position::evaluate(int const depth)
+    {   
+        if(isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+        {
+            // last move by opponent left opponent's king in check
+            // sideToMove here still refers to the opponent
+            evaluationAtDepth[depth] = LOSS[sideToMove];
             return;
+        }
+
+        evaluationAtDepth[depth] = LOSS[sideToMove];
+        ++numberOfNodesAtDepth[depth];
+        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth];
+
+        auto const quiescence = depth >= maxDepth;
+        
+        if(quiescence)
+        {
+            return;
+        }
+        
+        auto const other = sideToMove;
+        sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+        
+        if(quiescence)
+        {   
+            evaluationAtDepth[depth] = evaluateStatically();
+            evaluateCaptures(depth);
+            if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry
+                && isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+            {
+                // no captures found any more but we are in check
+                // try king moves first (more promising for escaping checks)
+                // isAttacked may be left out if a null move search is
+                // performed even in quiescence mode
+                evaluateNonCaptures<KING>(depth);
+                evaluateNonCaptures<QUEEN>(depth);
+                evaluateNonCaptures<ROOK>(depth);
+                evaluateNonCaptures<BISHOP>(depth);
+                evaluateNonCaptures<KNIGHT>(depth);
+                evaluateNonCaptures<PAWN>(depth);
+
+                if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
+                {
+                    // still no legal moves
+                    evaluationAtDepth[depth] = LOSS[sideToMove];
+                }
+            }
         }
         else
         {
-            // illegal if side to move is in check
-            if(inCheck<color>())
-            {
-                return;
-            }
-            
-            auto constexpr initial = color == WHITE ? BLACK_WIN : WHITE_WIN;
-            evaluationAtDepth[MAX_DEPTH - 1 - depth] = initial;
-    
-            evaluateCaptures<color, depth>();
-            evaluateNonCaptures<color, PAWN, depth>();
-            evaluateNonCaptures<color, KNIGHT, depth>();
-            evaluateNonCaptures<color, BISHOP, depth>();
-            evaluateNonCaptures<color, ROOK, depth>();
-            evaluateNonCaptures<color, QUEEN, depth>();
-            evaluateNonCaptures<color, KING, depth>();
-            ++halfMoves;    
-        }
-    }
+            evaluateCaptures(depth);
+            evaluateNonCaptures<PAWN>(depth);
+            evaluateNonCaptures<KNIGHT>(depth);
+            evaluateNonCaptures<BISHOP>(depth);
+            evaluateNonCaptures<ROOK>(depth);
+            evaluateNonCaptures<QUEEN>(depth);
+            evaluateNonCaptures<KING>(depth);
 
-    template<Color color, int depth>
-    void Position::quiescence()
-    {    
-        if(!inCheck<color>())
-        {
-            ++halfMoves;
-           /* auto const value = staticEvaluation();
-            if constexpr (color == WHITE)
+            if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
             {
-                if(value > evaluationAtDepth[MAX_DEPTH - 1 - depth])
+                // if we are here, there were no legal moves 
+                // if null move is evaluated, we would probably not need to check isAttacked
+                // anymore (null move would only result in zero additional nodes if in check)
+                if(isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
                 {
-                    evaluationAtDepth[MAX_DEPTH - 1 - depth] = value;
+                    // mate
+                    evaluationAtDepth[depth] = LOSS[sideToMove];
+                }
+                else
+                {
+                    // stalemate
+                    evaluationAtDepth[depth] = DRAW;
                 }
             }
-            else
-            {
-                if(value > evaluationAtDepth[MAX_DEPTH - 1 - depth])
-                {
-                    evaluationAtDepth[MAX_DEPTH - 1 - depth] = value;
-                }
-            }*/
-            //std::cout<<getBoardDisplay();
-            //std::cout<<"static value (at 0): "<<milliToPawnUnit(value)<<std::endl;
         }
+
+        sideToMove = other;
     }
 
-    MilliSquare Position::staticEvaluation()
+    bool Position::isAttacked(Square const square)
+    {
+        auto const other = sideToMove ^ BLACK;
+
+        return (PawnAttacks[sideToMove][square] & allPieces[other] & individualPieces[PAWN])
+            || (KnightAttacks[square] & allPieces[other] & individualPieces[KNIGHT])
+            || (DiagonalAttacks[square][pext(~empty,DiagonalMasks[square])] & allPieces[other]
+                & (individualPieces[BISHOP] | individualPieces[QUEEN]))
+            || (RankAttacks[square][pext(~empty, RankMasks[square])] & allPieces[other]
+                & (individualPieces[ROOK] | individualPieces[QUEEN]))
+            || (FileAttacks[square][pext(~empty, FileMasks[square])] & allPieces[other]
+                & (individualPieces[ROOK] | individualPieces[QUEEN]))
+            || (KingAttacks[square] & allPieces[other] & individualPieces[KING]);
+    }   
+
+    MilliSquare Position::evaluateStatically()
     {
         auto const p = populationIndex(popcount(~empty));
         auto value = StaticMobilities<WHITE, KING>[ffs(allPieces[WHITE] & individualPieces[KING])][p];
@@ -288,30 +378,13 @@ namespace spezi
         return value;
     }
 
-    template<Color color>
-    bool Position::inCheck() const
+    void Position::evaluateCaptures(int const depth)
     {
-        auto constexpr other = (color == WHITE ? BLACK : WHITE);
-        
-        auto const king = ffs(allPieces[color] & individualPieces[KING]);
-        
-        auto const diagonalAttacks = DiagonalAttacks[king][pext(~empty, DiagonalMasks[king])];
-        auto const pawnAttacks = PawnAttacks<color>[king] & allPieces[other] & individualPieces[PAWN];
-        auto const rankAttacks = RankAttacks[king][pext(~empty, RankMasks[king])];
-        auto const knightAttacks = KnightAttacks[king] & allPieces[other] & individualPieces[KNIGHT];
-        auto const fileAttacks = FileAttacks[king][pext(~empty, FileMasks[king])];
-        auto const bishopAttacks = diagonalAttacks & allPieces[other] & individualPieces[BISHOP];
-        auto const rookAttacks = (rankAttacks | fileAttacks) & allPieces[other] & individualPieces[ROOK]; 
-        auto const queenAttacks = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[other] & individualPieces[QUEEN];
-        
-        return pawnAttacks | knightAttacks | bishopAttacks | rookAttacks | queenAttacks; 
-    }
+        auto const other = sideToMove ^ BLACK;
+        auto const promotionRank = (sideToMove == WHITE ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
-    template<Color color, int depth>
-    void Position::evaluateCaptures()
-    {
-        auto constexpr other = (color == WHITE ? BLACK : WHITE);
-        auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
+        auto const enPassantAtEntry = enPassant;
+        enPassant = EMPTY;
 
         // MVV-LVA: queens first
         for(auto attackedPiece = static_cast<int>(QUEEN); attackedPiece >= static_cast<int>(PAWN); --attackedPiece)
@@ -320,23 +393,26 @@ namespace spezi
             while(targets)
             {
                 auto const target = ffs(targets);
-                auto const to = A1 << target;
-                allPieces[color] ^= to;
-                allPieces[other] ^= to;
-                individualPieces[attackedPiece] ^= to;
 
                 // compute here, use later (hopefully this will speed up things)
                 auto const diagonalAttacks = DiagonalAttacks[target][pext(~empty, DiagonalMasks[target])];
+                auto const rankAttacks = RankAttacks[target][pext(~empty, RankMasks[target])];
+                auto const fileAttacks = FileAttacks[target][pext(~empty, FileMasks[target])];
+
+                auto const to = A1 << target;
+                allPieces[sideToMove] ^= to;
+                allPieces[other] ^= to;
+                individualPieces[attackedPiece] ^= to;
 
                 // generate attackers by finding reverse color attacks from target square
                 // MVV-LVA: pawns first
-                auto attackers = PawnAttacks<other>[target] & allPieces[color] & individualPieces[PAWN];
+                auto attackers = PawnAttacks[other][target] & allPieces[sideToMove] & individualPieces[PAWN];
                 while(attackers)
                 {
                     auto const attacker = ffs(attackers);
                     auto const from = A1 << attacker;
 
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[PAWN] ^= from;
                     empty ^= from;
 
@@ -347,62 +423,56 @@ namespace spezi
                             --promotedPiece)
                         {
                             individualPieces[promotedPiece] ^= to;
-                            evaluate<other, depth-1>();
-                            updateEval<color, depth>();                            
+                            evaluate(depth + 1);
+                            updateEval(depth);                            
                             individualPieces[promotedPiece] ^= to;
                         }
                     }
                     else
                     { 
                         individualPieces[PAWN] ^= to;
-                        evaluate<other, depth-1>();
-                        updateEval<color, depth>();  
+                        evaluate(depth + 1);
+                        updateEval(depth);                            
                         individualPieces[PAWN] ^= to;                          
                     }
                 
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[PAWN] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
                 }
 
-                // compute here, use later (hopefully this will speed up things)
-                auto const rankAttacks = RankAttacks[target][pext(~empty, RankMasks[target])];
-
-                attackers = KnightAttacks[target] & allPieces[color] & individualPieces[KNIGHT];
+                attackers = KnightAttacks[target] & allPieces[sideToMove] & individualPieces[KNIGHT];
                 individualPieces[KNIGHT] ^= to;
                 while(attackers)
                 {
                     auto const attacker = ffs(attackers);
                     auto const from = A1 << attacker;
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[KNIGHT] ^= from;
                     empty ^= from;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();  
-                    allPieces[color] ^= from;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= from;
                     individualPieces[KNIGHT] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
                 }
                 individualPieces[KNIGHT] ^= to;
 
-                // compute here, use later (hopefully this will speed up things)
-                auto const fileAttacks = FileAttacks[target][pext(~empty, RankMasks[target])];
-
                 //  use it
-                attackers = diagonalAttacks & allPieces[color] & individualPieces[BISHOP];
+                attackers = diagonalAttacks & allPieces[sideToMove] & individualPieces[BISHOP];
                 individualPieces[BISHOP] ^= to;
                 while(attackers)
                 {
                     auto const attacker = ffs(attackers);
                     auto const from = A1 << attacker;
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[BISHOP] ^= from;
                     empty ^= from;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();  
-                    allPieces[color] ^= from;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= from;
                     individualPieces[BISHOP] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
@@ -410,18 +480,18 @@ namespace spezi
                 individualPieces[BISHOP] ^= to;
 
                 //  use it
-                attackers = (rankAttacks | fileAttacks) & allPieces[color] & individualPieces[ROOK];
+                attackers = (rankAttacks | fileAttacks) & allPieces[sideToMove] & individualPieces[ROOK];
                 individualPieces[ROOK] ^= to;
                 while(attackers)
                 {
                     auto const attacker = ffs(attackers);
                     auto const from = A1 << attacker;
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[ROOK] ^= from;
                     empty ^= from;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();  
-                    allPieces[color] ^= from;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= from;
                     individualPieces[ROOK] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
@@ -429,74 +499,105 @@ namespace spezi
                 individualPieces[ROOK] ^= to;
 
                 //  use it
-                attackers = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[color] & individualPieces[QUEEN];
+                attackers = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[sideToMove] & individualPieces[QUEEN];
                 individualPieces[QUEEN] ^= to;
                 while(attackers)
                 {
                     auto const attacker = ffs(attackers);
                     auto const from = A1 << attacker;
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[QUEEN] ^= from;
                     empty ^= from;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();  
-                    allPieces[color] ^= from;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= from;
                     individualPieces[QUEEN] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
                 }
                 individualPieces[QUEEN] ^= to;
-
                 
-                auto const attacker = ffs(KingAttacks[target] & allPieces[color] & individualPieces[KING]);
+                auto const attacker = ffs(KingAttacks[target] & allPieces[sideToMove] & individualPieces[KING]);
                 if(attacker != NULL_SQUARE)
                 {
                     individualPieces[KING] ^= to;
                     auto const from = A1 << attacker;
-                    allPieces[color] ^= from;
+                    allPieces[sideToMove] ^= from;
                     individualPieces[KING] ^= from;
                     empty ^= from;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();  
-                    allPieces[color] ^= from;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= from;
                     individualPieces[KING] ^= from;
                     empty ^= from;
                     attackers &= attackers - 1;
                     individualPieces[KING] ^= to;
                 }
 
-                allPieces[color] ^= to;
+                allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
                 targets &= targets - 1;
             }
         }
+
+        if(enPassantAtEntry)
+        {
+            auto const target = ffs(enPassantAtEntry);
+            auto const pawn = A1 << (target + (SquaresPerRank * ((sideToMove << 1) - 1)));
+            auto attackers = PawnAttacks[other][target] & allPieces[sideToMove] & individualPieces[PAWN];
+            individualPieces[PAWN] ^= enPassantAtEntry;
+            individualPieces[PAWN] ^= pawn;
+            allPieces[sideToMove] ^= enPassantAtEntry;
+            allPieces[other] ^= pawn;
+            empty ^= (enPassantAtEntry ^ pawn);
+            while(attackers)
+            {
+                auto const attacker = ffs(attackers);
+                auto const from = A1 << attacker;
+                allPieces[sideToMove] ^= from;
+                individualPieces[PAWN] ^= from;
+                empty ^= from;
+                evaluate(depth + 1);
+                updateEval(depth);                            
+                allPieces[sideToMove] ^= from;
+                individualPieces[PAWN] ^= from;
+                empty ^= from;
+                attackers &= attackers - 1;
+            }
+            individualPieces[PAWN] ^= enPassantAtEntry;
+            individualPieces[PAWN] ^= pawn;
+            allPieces[sideToMove] ^= enPassantAtEntry;
+            allPieces[other] ^= pawn;
+            empty ^= (enPassantAtEntry ^ pawn);
+        }
+
+        enPassant = enPassantAtEntry;
     }
 
-    template<Color color, Piece piece, int depth>
-    void Position::evaluateNonCaptures()
+    template<Piece piece>
+    void Position::evaluateNonCaptures(int const depth)
     {
-        auto constexpr other = (color == WHITE ? BLACK : WHITE); 
-        auto constexpr promotionRank = ((color == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
+        auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
-        auto movers = allPieces[color] & individualPieces[piece];
+        auto movers = allPieces[sideToMove] & individualPieces[piece];
         
         while(movers)
         {
             auto const mover = ffs(movers);
             auto const from = A1 << mover;
-            allPieces[color] ^= from;
+            allPieces[sideToMove] ^= from;
             individualPieces[piece] ^= from;
             empty ^= from;
 
-            auto targets = generateNonCaptureSquares<color, piece>(mover);
+            auto targets = generateNonCaptureSquares<piece>(mover);
 
             while(targets)
             {
                 auto const target = ffs(targets);
                 auto const to = A1 << target;
 
-                allPieces[color] ^= to;    
+                allPieces[sideToMove] ^= to;    
                 empty ^= to;    
                 
                 if constexpr(piece == PAWN)
@@ -508,85 +609,65 @@ namespace spezi
                             --promotedPiece)
                         {
                             individualPieces[promotedPiece] ^= to;
-                            evaluate<other, depth-1>();
-                            updateEval<color, depth>();                            
+                            evaluate(depth + 1);
+                            updateEval(depth);                            
                             individualPieces[promotedPiece] ^= to;
                         }
                     }
                     else
                     {
                         individualPieces[PAWN] ^= to;
-                        evaluate<other, depth-1>();
-                        updateEval<color, depth>();                            
+                        enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
+                        evaluate(depth + 1);
+                        updateEval(depth);                            
                         individualPieces[PAWN] ^= to;
+                        enPassant = EMPTY;
                     }                     
                 }
                 else
                 {
                     individualPieces[piece] ^= to;
-                    evaluate<other, depth-1>();
-                    updateEval<color, depth>();                            
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
                     individualPieces[piece] ^= to;
                 }
 
-                allPieces[color] ^= to;
+                allPieces[sideToMove] ^= to;
                 empty ^= to;
                 targets &= targets - 1;            
             }
             
-            allPieces[color] ^= from;
+            allPieces[sideToMove] ^= from;
             individualPieces[piece] ^= from;
             empty ^= from;
             movers &= movers - 1;
         }
 
-        // castling, en passant?
+        // castling
+        if constexpr(piece == KING)
+        {
+
+        }
     }
 
-    template<Color color, int depth>
-    void Position::updateEval()
+    void Position::updateEval(int const depth)
     {
-        /*if constexpr(depth==6)
-        {   
-            std::cout<<getBoardDisplay()<<std::endl;
-            std::cout<<"evaluation old:"<<milliToPawnUnit(evaluationAtDepth[MAX_DEPTH - depth -1])<<std::endl;
-        }*/
-        if constexpr(color == WHITE)
-        {
-            if(evaluationAtDepth[MAX_DEPTH - depth - 1] < evaluationAtDepth[MAX_DEPTH - depth])
-            {
-                evaluationAtDepth[MAX_DEPTH - depth - 1] = evaluationAtDepth[MAX_DEPTH - depth];
-       /*         if(depth>4)
-                {
-                    std::cout<<getBoardDisplay();
-                    std::cout<<"new high white: "<< milliToPawnUnit(evaluationAtDepth[MAX_DEPTH-depth-1])<<std::endl;
-                }*/
-            }
-        }
-        else
-        {
-            if(evaluationAtDepth[MAX_DEPTH - depth - 1] > evaluationAtDepth[MAX_DEPTH - depth])
-            {
-                evaluationAtDepth[MAX_DEPTH - depth - 1] = evaluationAtDepth[MAX_DEPTH - depth];
-             /*   if(depth > 4)
-                {
-                    std::cout<<getBoardDisplay();
-                    std::cout<<"new low black: "<< milliToPawnUnit(evaluationAtDepth[MAX_DEPTH-depth-1])<<std::endl;
-                }*/
-            }
-        }
+        int const sign = sideToMove == WHITE ? 1 : -1;
+        evaluationAtDepth[depth] = 
+            sign * evaluationAtDepth[depth + 1] > sign * evaluationAtDepth[depth] ?
+            evaluationAtDepth[depth + 1] : evaluationAtDepth[depth]; 
     }
     
-    template<Color color, Piece piece>
+    template<Piece piece>
     BitBoard Position::generateNonCaptureSquares(Square const origin) const
     {
         BitBoard reachable { EMPTY };
 
         if constexpr(piece == PAWN)
         {
-            reachable = PawnPushes<color>[origin] & empty;        
+            reachable = PawnPushes[sideToMove][origin] & empty;        
             // double pushes from starting position
-            if constexpr(color == WHITE)
+            if(sideToMove == WHITE)
             {
                 reachable |= (reachable << SquaresPerRank) & RANKS[3];
             }

@@ -1,24 +1,43 @@
 #include "Position.hpp"
 
+#include "test.hpp"
+
 #include <iostream>
 
 using namespace spezi;
 
 int main(int argc, char** argv)
 {
-    auto depth = 1;
+    test::runTests();
+
+    auto depth = 0;
 
     if(argc > 1)
     {
         depth = std::stoi(argv[1]);
     }
     
-    //auto const fen = "r1bqkbnr/1PppPppp/8/8/8/8/pPPP1PPP/nNBQKBNR w KQkq - 0 1";
-    //auto const fen = "rnbqkbnr/ppppp11p/5p2/6p1/2N1P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1";
-    auto const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    auto fen = std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    if(argc == 8)
+    {
+        fen = "";
+        for(int i = 2; i < 8; ++i)
+        {
+            fen += argv[i];
+            fen += ' ';
+        }
+    }
+
     Position p(fen);
-        
-    p.evaluate(depth);
-    std::cout<<p.getFen()<<std::endl;;
+    EvaluationStatistics stats{p.evaluateRecursively(depth)};
+
+    std::cout<<"evaluation:                 "<<stats.evaluation<<std::endl;
+    std::cout<<"maximum depth:              "<<stats.maximumDepth<<std::endl;
+    std::cout<<"maximum quiescence depth:   "<<stats.maximumQuiescenceDepth<<std::endl;
+    std::cout<<"nodes:                      "<<stats.numberOfNodes<<std::endl;
+    std::cout<<"quiescence nodes:           "<<stats.numberOfQuiescenceNodes<<std::endl;
+    std::cout<<"seconds:                    "<<stats.seconds<<std::endl;
+    std::cout<<"nodes per second:           "<<stats.numberOfNodes/stats.seconds<<std::endl;
 }
     
