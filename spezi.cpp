@@ -1,15 +1,11 @@
 #include "Position.hpp"
 
-#include "test.hpp"
-
 #include <iostream>
 
 using namespace spezi;
 
 int main(int argc, char** argv)
 {
-    test::runTests();
-
     auto depth = 0;
 
     if(argc > 1)
