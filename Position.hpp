@@ -78,6 +78,8 @@ namespace spezi
         int halfMoves = 0;
         int fullMoves = 0;
 
+        char castlingRights = 0xF;
+
         Color sideToMove = WHITE;
         BitBoard enPassant = EMPTY;
 

@@ -79,6 +79,17 @@ namespace spezi
             }
             return value;
         }
+
+        static inline char castlingUpdateFlags(BitBoard const from, BitBoard const to)
+        {
+            auto const wKing = popcount(E1 & from);
+            auto const bKing = popcount(E8 & from);
+            auto const K = popcount(H1 & (from | to)) | wKing;
+            auto const Q = popcount(A1 & (from | to)) | wKing;
+            auto const k = popcount(H8 & (from | to)) | bKing;
+            auto const q = popcount(A8 & (from | to)) | bKing;
+            return 0xF & ~(K | (Q << 1) | (k << 2) | (q << 3));
+        }
     } 
 
     Position::Position(std::string fen)
@@ -146,6 +157,47 @@ namespace spezi
         else
         {
             throw std::runtime_error("Invalid side-to-move character: " + sections[1]);
+        }
+
+        std::string allowedCastling[] =
+        { 
+            "-", "K", "Q", "k", "q", "KQ", "Kk", "Kq", "Qk", "Qq", "kq",
+            "KQk", "KQq", "Kkq", "Qkq", "KQkq"
+        }; 
+
+        bool castlingError = true;
+        for(auto const s : allowedCastling)
+        {
+            if(s == sections[2])
+            {
+                castlingError = false;
+                break;
+            }
+        }
+        if(castlingError)
+        { 
+            throw std::runtime_error("Invalid castling rights: " + sections[2]);
+        }
+
+        if(sections[2][0] != 'K')
+        {
+            castlingRights &= ~1;
+        }
+        if(sections[2][0] != 'Q' && sections[2][1] != 'Q')
+        {
+            castlingRights &= ~(1 << 1);            
+        }
+        if(sections[2][0] != 'k' && sections[2][1] != 'k' && sections[2][2] != 'k')
+        {
+            castlingRights &= ~(1 << 2);
+        }
+        if(sections[2][0] != 'q' && sections[2][1] != 'q' && sections[2][2] != 'q' && sections[2][3] != 'q')
+        {
+            castlingRights &= ~(1 << 3);
+        }
+        if(sections[2] == "-")
+        {
+            castlingRights = 0;
         }
 
         halfMoves = std::stoi(sections[4]);
@@ -277,6 +329,7 @@ namespace spezi
         
         if(quiescence)
         {
+            //std::cout<<getBoardDisplay();
             return;
         }
         
@@ -383,6 +436,7 @@ namespace spezi
         auto const other = sideToMove ^ BLACK;
         auto const promotionRank = (sideToMove == WHITE ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
+        auto const castlingRightsAtEntry = castlingRights;
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
 
@@ -418,6 +472,7 @@ namespace spezi
 
                     if(from & promotionRank)
                     {
+                        castlingRights &= castlingUpdateFlags(from, to);
                         for(int promotedPiece = static_cast<int>(QUEEN); 
                             promotedPiece != static_cast<int>(PAWN);
                             --promotedPiece)
@@ -427,6 +482,7 @@ namespace spezi
                             updateEval(depth);                            
                             individualPieces[promotedPiece] ^= to;
                         }
+                        castlingRights = castlingRightsAtEntry;
                     }
                     else
                     { 
@@ -451,8 +507,10 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[KNIGHT] ^= from;
                     empty ^= from;
+                    castlingRights &= castlingUpdateFlags(from, to);
                     evaluate(depth + 1);
                     updateEval(depth);                            
+                    castlingRights = castlingRightsAtEntry;
                     allPieces[sideToMove] ^= from;
                     individualPieces[KNIGHT] ^= from;
                     empty ^= from;
@@ -470,8 +528,10 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[BISHOP] ^= from;
                     empty ^= from;
+                    castlingRights &= castlingUpdateFlags(from, to);
                     evaluate(depth + 1);
                     updateEval(depth);                            
+                    castlingRights = castlingRightsAtEntry;
                     allPieces[sideToMove] ^= from;
                     individualPieces[BISHOP] ^= from;
                     empty ^= from;
@@ -489,8 +549,10 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[ROOK] ^= from;
                     empty ^= from;
+                    castlingRights &= castlingUpdateFlags(from, to);
                     evaluate(depth + 1);
                     updateEval(depth);                            
+                    castlingRights = castlingRightsAtEntry;
                     allPieces[sideToMove] ^= from;
                     individualPieces[ROOK] ^= from;
                     empty ^= from;
@@ -508,8 +570,10 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[QUEEN] ^= from;
                     empty ^= from;
+                    castlingRights &= castlingUpdateFlags(from, to);
                     evaluate(depth + 1);
                     updateEval(depth);                            
+                    castlingRights = castlingRightsAtEntry;
                     allPieces[sideToMove] ^= from;
                     individualPieces[QUEEN] ^= from;
                     empty ^= from;
@@ -525,8 +589,10 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[KING] ^= from;
                     empty ^= from;
+                    castlingRights &= castlingUpdateFlags(from, to);
                     evaluate(depth + 1);
                     updateEval(depth);                            
+                    castlingRights = castlingRightsAtEntry;
                     allPieces[sideToMove] ^= from;
                     individualPieces[KING] ^= from;
                     empty ^= from;
@@ -579,6 +645,9 @@ namespace spezi
     void Position::evaluateNonCaptures(int const depth)
     {
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
+        auto const castlingRightsAtEntry = castlingRights;
+        auto const enPassantAtEntry = enPassant;
+        enPassant = EMPTY;
 
         auto movers = allPieces[sideToMove] & individualPieces[piece];
         
@@ -625,11 +694,19 @@ namespace spezi
                     }                     
                 }
                 else
-                {
+                {                    
+                    if constexpr(piece == ROOK || piece == KING)
+                    {
+                        castlingRights &= castlingUpdateFlags(from, to);   
+                    }
                     individualPieces[piece] ^= to;
                     evaluate(depth + 1);
                     updateEval(depth);                            
                     individualPieces[piece] ^= to;
+                    if constexpr(piece == ROOK || piece == KING)
+                    {
+                        castlingRights = castlingRightsAtEntry;
+                    }
                 }
 
                 allPieces[sideToMove] ^= to;
@@ -646,8 +723,54 @@ namespace spezi
         // castling
         if constexpr(piece == KING)
         {
+            auto const shift = sideToMove * 56;
+            auto const K = E1 << shift; 
 
+            if(!isAttacked(ffs(K))) // pretty inefficient, fix later
+            {        
+                if((castlingRights & (1 << (sideToMove << 1)))
+                    && (((empty >> shift) & (F1|G1)) == (F1|G1))
+                    && !isAttacked(ffs(F1 << shift)))
+                {
+                    auto const affectedKingSquares = (E1 | G1) << shift;
+                    auto const affectedRookSquares = (H1 | F1) << shift;
+                    auto const affectedSquares = affectedKingSquares | affectedRookSquares;
+                    castlingRights &= ~(3 << (sideToMove << 1));
+                    allPieces[sideToMove] ^= affectedSquares;
+                    empty ^= affectedSquares;
+                    individualPieces[KING] ^= affectedKingSquares;
+                    individualPieces[ROOK] ^= affectedRookSquares;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= affectedSquares;
+                    empty ^= affectedSquares;
+                    individualPieces[KING] ^= affectedKingSquares;
+                    individualPieces[ROOK] ^= affectedRookSquares;
+                    castlingRights = castlingRightsAtEntry;
+                }
+                if((castlingRights & (2 << (sideToMove << 1)))
+                    && (((empty >> shift) & (B1|C1|D1)) == (B1|C1|D1))
+                    && !isAttacked(ffs(D1 << shift)))
+                {
+                    auto const affectedKingSquares = (E1 | C1) << shift;
+                    auto const affectedRookSquares = (A1 | D1) << shift;
+                    auto const affectedSquares = affectedKingSquares | affectedRookSquares;
+                    castlingRights &= ~(3 << (sideToMove << 1));
+                    allPieces[sideToMove] ^= affectedSquares;
+                    empty ^= affectedSquares;
+                    individualPieces[KING] ^= affectedKingSquares;
+                    individualPieces[ROOK] ^= affectedRookSquares;
+                    evaluate(depth + 1);
+                    updateEval(depth);                            
+                    allPieces[sideToMove] ^= affectedSquares;
+                    empty ^= affectedSquares;
+                    individualPieces[KING] ^= affectedKingSquares;
+                    individualPieces[ROOK] ^= affectedRookSquares;
+                    castlingRights = castlingRightsAtEntry;
+                }
+            }
         }
+        enPassant = enPassantAtEntry;
     }
 
     void Position::updateEval(int const depth)
