@@ -14,7 +14,8 @@ namespace spezi
 {
     auto constexpr MAX_DEPTH = 8;
     auto constexpr MAX_QUIESCENCE_DEPTH = 64;
-    
+    auto constexpr MAX_PIECES_PER_SIDE = 16;
+
     MilliSquare constexpr LOSS[NumberOfColors] = {-123456789, 123456789};   
     MilliSquare constexpr DRAW = 0;
 
@@ -46,11 +47,19 @@ namespace spezi
     private:
         void evaluate(int depth);
 
+        void prepareAttackBoards(int depth);
+
         bool isAttacked(Square square);
 
         void evaluateCaptures(int depth);
 
-        template<Piece piece>
+        enum Order
+        {
+            PAWN_FIRST,
+            KING_FIRST,
+        };
+
+        template<Order = PAWN_FIRST>
         void evaluateNonCaptures(int depth);
 
         void updateEval(int depth);
@@ -87,5 +96,6 @@ namespace spezi
 
         std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> evaluationAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
+        std::array<std::array<BitBoard, MAX_PIECES_PER_SIDE * 2>, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> attackBoards;
     };
 }

@@ -314,12 +314,19 @@ namespace spezi
 {
     void Position::evaluate(int const depth)
     {   
-        if(isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+        auto const other = sideToMove;
+        sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+
+        prepareAttackBoards(depth);
+
+        for(auto index = 0; index < popcount(allPieces[sideToMove]); ++index)
         {
-            // last move by opponent left opponent's king in check
-            // sideToMove here still refers to the opponent
-            evaluationAtDepth[depth] = LOSS[sideToMove];
-            return;
+            if(attackBoards[depth][index] & allPieces[other] & individualPieces[KING])
+            {
+                // last move by opponent left opponent's king in check
+                evaluationAtDepth[depth] = LOSS[other];
+                return;
+            }
         }
 
         evaluationAtDepth[depth] = LOSS[sideToMove];
@@ -334,10 +341,7 @@ namespace spezi
             return;
         }
         
-        auto const other = sideToMove;
-        sideToMove = static_cast<Color>(sideToMove ^ BLACK);
-        
-        if(quiescence)
+/*        if(quiescence)
         {   
             evaluationAtDepth[depth] = evaluateStatically();
             evaluateCaptures(depth);
@@ -348,12 +352,7 @@ namespace spezi
                 // try king moves first (more promising for escaping checks)
                 // isAttacked may be left out if a null move search is
                 // performed even in quiescence mode
-                evaluateNonCaptures<KING>(depth);
-                evaluateNonCaptures<QUEEN>(depth);
-                evaluateNonCaptures<ROOK>(depth);
-                evaluateNonCaptures<BISHOP>(depth);
-                evaluateNonCaptures<KNIGHT>(depth);
-                evaluateNonCaptures<PAWN>(depth);
+                evaluateNonCaptures<KING_FIRST>(depth);
 
                 if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
                 {
@@ -361,17 +360,12 @@ namespace spezi
                     evaluationAtDepth[depth] = LOSS[sideToMove];
                 }
             }
-        }
+        }*/
         else
         {
             evaluateCaptures(depth);
-            evaluateNonCaptures<PAWN>(depth);
-            evaluateNonCaptures<KNIGHT>(depth);
-            evaluateNonCaptures<BISHOP>(depth);
-            evaluateNonCaptures<ROOK>(depth);
-            evaluateNonCaptures<QUEEN>(depth);
-            evaluateNonCaptures<KING>(depth);
-
+            evaluateNonCaptures<PAWN_FIRST>(depth);
+         
             if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
             {
                 // if we are here, there were no legal moves 
@@ -391,6 +385,65 @@ namespace spezi
         }
 
         sideToMove = other;
+    }
+
+    void Position::prepareAttackBoards(int depth)
+    {
+        auto index = - 1;
+  
+        auto pawns = allPieces[sideToMove] & individualPieces[PAWN];
+        while(pawns)
+        {
+            auto const pawn = ffs(pawns);
+            attackBoards[depth][++index] = A1 << pawn;
+            attackBoards[depth][++index] = PawnAttacks[sideToMove][pawn];
+            pawns &= pawns - 1;
+        }
+
+        auto knights = allPieces[sideToMove] & individualPieces[KNIGHT];
+        while(knights)
+        {
+            auto const knight = ffs(knights);
+            attackBoards[depth][++index] = A1 << knight;
+            attackBoards[depth][++index] = KnightAttacks[knight];
+            knights &= knights - 1;
+        }
+
+        auto bishops = allPieces[sideToMove] & individualPieces[BISHOP];
+        while(bishops)
+        {
+            auto const bishop = ffs(bishops);
+            attackBoards[depth][++index] = A1 << bishop;
+            attackBoards[depth][++index] = DiagonalAttacks[bishop][pext(~empty,DiagonalMasks[bishop])];
+            bishops &= bishops - 1;
+        }
+
+        auto rooks = allPieces[sideToMove] & individualPieces[ROOK];
+        while(rooks)
+        {
+            auto const rook = ffs(rooks);
+            attackBoards[depth][++index] = A1 << rook;
+            attackBoards[depth][++index] = 
+                RankAttacks[rook][pext(~empty,RankMasks[rook])]
+                | FileAttacks[rook][pext(~empty,FileMasks[rook])];
+            rooks &= rooks - 1;
+        }
+
+        auto queens = allPieces[sideToMove] & individualPieces[QUEEN];
+        while(queens)
+        {
+            auto const queen = ffs(queens);
+            attackBoards[depth][++index] = A1 << queen;
+            attackBoards[depth][++index] = 
+                RankAttacks[queen][pext(~empty,RankMasks[queen])]
+                | FileAttacks[queen][pext(~empty,FileMasks[queen])]
+                | DiagonalAttacks[queen][pext(~empty,DiagonalMasks[queen])];
+            queens &= queens - 1;
+        }
+
+        auto king = allPieces[sideToMove] & individualPieces[KING];
+        attackBoards[depth][++index] = A1 << king;
+        attackBoards[depth][++index] = KingAttacks[ffs(king)];
     }
 
     bool Position::isAttacked(Square const square)
@@ -449,24 +502,21 @@ namespace spezi
             {
                 auto const target = ffs(targets);
 
-                // compute here, use later (hopefully this will speed up things)
-                auto const diagonalAttacks = DiagonalAttacks[target][pext(~empty, DiagonalMasks[target])];
-                auto const rankAttacks = RankAttacks[target][pext(~empty, RankMasks[target])];
-                auto const fileAttacks = FileAttacks[target][pext(~empty, FileMasks[target])];
-
                 auto const to = A1 << target;
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
 
-                // generate attackers by finding reverse color attacks from target square
-                // MVV-LVA: pawns first
-                auto attackers = PawnAttacks[other][target] & allPieces[sideToMove] & individualPieces[PAWN];
-                while(attackers)
+                int index = 0;
+                auto const max = popcount(allPieces[sideToMove] & individualPieces[PAWN]) << 1; 
+                for(; index != max ; index += 2)
                 {
-                    auto const attacker = ffs(attackers);
-                    auto const from = A1 << attacker;
+                    if(!(to & attackBoards[depth][index +1]))
+                    {
+                        continue;
+                    }       
 
+                    auto const from = attackBoards[depth][index];
                     allPieces[sideToMove] ^= from;
                     individualPieces[PAWN] ^= from;
                     empty ^= from;
@@ -496,111 +546,34 @@ namespace spezi
                     allPieces[sideToMove] ^= from;
                     individualPieces[PAWN] ^= from;
                     empty ^= from;
-                    attackers &= attackers - 1;
                 }
 
-                attackers = KnightAttacks[target] & allPieces[sideToMove] & individualPieces[KNIGHT];
-                individualPieces[KNIGHT] ^= to;
-                while(attackers)
+                for(auto attackingPiece = static_cast<int>(KNIGHT); attackingPiece != NumberOfPieceTypes; ++attackingPiece)
                 {
-                    auto const attacker = ffs(attackers);
-                    auto const from = A1 << attacker;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[KNIGHT] ^= from;
-                    empty ^= from;
-                    castlingRights &= castlingUpdateFlags(from, to);
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    castlingRights = castlingRightsAtEntry;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[KNIGHT] ^= from;
-                    empty ^= from;
-                    attackers &= attackers - 1;
-                }
-                individualPieces[KNIGHT] ^= to;
+                    auto const max = index + (popcount(allPieces[sideToMove] & individualPieces[PAWN]) << 1);
+                    individualPieces[attackingPiece] ^= to;
+                    for(; index!=max; index += 2)
+                    {
+                        if(!(to & attackBoards[depth][index + 1]))
+                        {
+                            continue;
+                        }
 
-                //  use it
-                attackers = diagonalAttacks & allPieces[sideToMove] & individualPieces[BISHOP];
-                individualPieces[BISHOP] ^= to;
-                while(attackers)
-                {
-                    auto const attacker = ffs(attackers);
-                    auto const from = A1 << attacker;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[BISHOP] ^= from;
-                    empty ^= from;
-                    castlingRights &= castlingUpdateFlags(from, to);
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    castlingRights = castlingRightsAtEntry;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[BISHOP] ^= from;
-                    empty ^= from;
-                    attackers &= attackers - 1;
+                        auto const from = attackBoards[depth][index];
+                        allPieces[sideToMove] ^= from;
+                        individualPieces[attackingPiece] ^= from;
+                        empty ^= from;
+                        castlingRights &= castlingUpdateFlags(from, to);
+                        evaluate(depth + 1);
+                        updateEval(depth);                            
+                        castlingRights = castlingRightsAtEntry;
+                        allPieces[sideToMove] ^= from;
+                        individualPieces[attackingPiece] ^= from;
+                        empty ^= from;
+                    }
+                    individualPieces[attackingPiece] ^= to;
                 }
-                individualPieces[BISHOP] ^= to;
-
-                //  use it
-                attackers = (rankAttacks | fileAttacks) & allPieces[sideToMove] & individualPieces[ROOK];
-                individualPieces[ROOK] ^= to;
-                while(attackers)
-                {
-                    auto const attacker = ffs(attackers);
-                    auto const from = A1 << attacker;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[ROOK] ^= from;
-                    empty ^= from;
-                    castlingRights &= castlingUpdateFlags(from, to);
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    castlingRights = castlingRightsAtEntry;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[ROOK] ^= from;
-                    empty ^= from;
-                    attackers &= attackers - 1;
-                }
-                individualPieces[ROOK] ^= to;
-
-                //  use it
-                attackers = (diagonalAttacks | rankAttacks | fileAttacks) & allPieces[sideToMove] & individualPieces[QUEEN];
-                individualPieces[QUEEN] ^= to;
-                while(attackers)
-                {
-                    auto const attacker = ffs(attackers);
-                    auto const from = A1 << attacker;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[QUEEN] ^= from;
-                    empty ^= from;
-                    castlingRights &= castlingUpdateFlags(from, to);
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    castlingRights = castlingRightsAtEntry;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[QUEEN] ^= from;
-                    empty ^= from;
-                    attackers &= attackers - 1;
-                }
-                individualPieces[QUEEN] ^= to;
                 
-                auto const attacker = ffs(KingAttacks[target] & allPieces[sideToMove] & individualPieces[KING]);
-                if(attacker != NULL_SQUARE)
-                {
-                    individualPieces[KING] ^= to;
-                    auto const from = A1 << attacker;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[KING] ^= from;
-                    empty ^= from;
-                    castlingRights &= castlingUpdateFlags(from, to);
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    castlingRights = castlingRightsAtEntry;
-                    allPieces[sideToMove] ^= from;
-                    individualPieces[KING] ^= from;
-                    empty ^= from;
-                    attackers &= attackers - 1;
-                    individualPieces[KING] ^= to;
-                }
-
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
@@ -642,7 +615,7 @@ namespace spezi
         enPassant = enPassantAtEntry;
     }
 
-    template<Piece piece>
+    template<Position::Order order>
     void Position::evaluateNonCaptures(int const depth)
     {
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
@@ -650,79 +623,93 @@ namespace spezi
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
 
-        auto movers = allPieces[sideToMove] & individualPieces[piece];
-        
-        while(movers)
+        int startPiece, endPiece, step, index;
+
+        if constexpr(order == PAWN_FIRST)
         {
-            auto const mover = ffs(movers);
-            auto const from = A1 << mover;
-            allPieces[sideToMove] ^= from;
-            individualPieces[piece] ^= from;
-            empty ^= from;
-
-            auto targets = generateNonCaptureSquares<piece>(mover);
-
-            while(targets)
+            startPiece = static_cast<int>(PAWN);
+            endPiece = NumberOfPieceTypes;
+            step = 1;
+            index = 0;
+        }
+        else
+        {
+            startPiece = static_cast<int>(KING);
+            endPiece = NULL_PIECE;
+            step = -1;
+            index = (popcount(allPieces[sideToMove]) << 1) - 2;
+        }
+        
+        
+        for(auto piece = startPiece; piece != endPiece; piece += step)
+        {
+            auto const endIndex = index + step * (popcount(allPieces[sideToMove] & individualPieces[piece]) << 1);
+            for(; index != endIndex; index += step << 1)
             {
-                auto const target = ffs(targets);
-                auto const to = A1 << target;
+                auto const from = attackBoards[depth][index];
+                allPieces[sideToMove] ^= from;
+                individualPieces[piece] ^= from;
+                empty ^= from;
 
-                allPieces[sideToMove] ^= to;    
-                empty ^= to;    
-                
-                if constexpr(piece == PAWN)
+                auto targets = attackBoards[depth][index + 1];
+
+                while(targets) 
                 {
-                    if(from & promotionRank)
+                    auto const target = ffs(targets);
+                    auto const to = A1 << target;
+
+                    allPieces[sideToMove] ^= to;    
+                    empty ^= to;    
+                
+                    if(piece == PAWN)
                     {
-                        for(int promotedPiece = static_cast<int>(QUEEN); 
-                            promotedPiece != static_cast<int>(PAWN);
-                            --promotedPiece)
+                        if(from & promotionRank)
                         {
-                            individualPieces[promotedPiece] ^= to;
+                            for(int promotedPiece = static_cast<int>(QUEEN); 
+                                promotedPiece != static_cast<int>(PAWN);
+                                --promotedPiece)
+                            {
+                                individualPieces[promotedPiece] ^= to;
+                                evaluate(depth + 1);
+                                updateEval(depth);                            
+                                individualPieces[promotedPiece] ^= to;
+                            }
+                        }
+                        else
+                        {
+                            individualPieces[PAWN] ^= to;
+                            enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[ffs(from)];
                             evaluate(depth + 1);
                             updateEval(depth);                            
-                            individualPieces[promotedPiece] ^= to;
-                        }
+                            individualPieces[PAWN] ^= to;
+                            enPassant = EMPTY;
+                        }                     
                     }
                     else
-                    {
-                        individualPieces[PAWN] ^= to;
-                        enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
+                    {                    
+                        if (piece == ROOK || piece == KING)
+                        {
+                            castlingRights &= castlingUpdateFlags(from, to);   
+                        }
+                        individualPieces[piece] ^= to;
                         evaluate(depth + 1);
                         updateEval(depth);                            
-                        individualPieces[PAWN] ^= to;
-                        enPassant = EMPTY;
-                    }                     
-                }
-                else
-                {                    
-                    if constexpr(piece == ROOK || piece == KING)
-                    {
-                        castlingRights &= castlingUpdateFlags(from, to);   
-                    }
-                    individualPieces[piece] ^= to;
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    individualPieces[piece] ^= to;
-                    if constexpr(piece == ROOK || piece == KING)
-                    {
+                        individualPieces[piece] ^= to;
                         castlingRights = castlingRightsAtEntry;
                     }
-                }
 
-                allPieces[sideToMove] ^= to;
-                empty ^= to;
-                targets &= targets - 1;            
-            }
+                    allPieces[sideToMove] ^= to;
+                    empty ^= to;
+                    targets &= targets - 1;            
+                }
             
-            allPieces[sideToMove] ^= from;
-            individualPieces[piece] ^= from;
-            empty ^= from;
-            movers &= movers - 1;
+                allPieces[sideToMove] ^= from;
+                individualPieces[piece] ^= from;
+                empty ^= from;
+            }
         }
 
-        // castling
-        if constexpr(piece == KING)
+        if(castlingRights & (3 << (sideToMove << 1)))
         {
             auto const shift = sideToMove * 56;
             auto const K = E1 << shift; 
