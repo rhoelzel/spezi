@@ -314,17 +314,18 @@ namespace spezi
 {
     void Position::evaluate(int const depth)
     {   
+
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
 
         prepareAttackBoards(depth);
-
-        for(auto index = 0; index < popcount(allPieces[sideToMove]); ++index)
+        for(auto index = 0; index < (popcount(allPieces[sideToMove]) << 1); index+=2)
         {
-            if(attackBoards[depth][index] & allPieces[other] & individualPieces[KING])
+            if(attackBoards[depth][index + 1] & allPieces[other] & individualPieces[KING])
             {
                 // last move by opponent left opponent's king in check
                 evaluationAtDepth[depth] = LOSS[other];
+                sideToMove = other;
                 return;
             }
         }
@@ -338,6 +339,7 @@ namespace spezi
         if(quiescence)
         {
             //std::cout<<getBoardDisplay();
+                    sideToMove = other;
             return;
         }
         
@@ -441,9 +443,9 @@ namespace spezi
             queens &= queens - 1;
         }
 
-        auto king = allPieces[sideToMove] & individualPieces[KING];
+        auto king = ffs(allPieces[sideToMove] & individualPieces[KING]);
         attackBoards[depth][++index] = A1 << king;
-        attackBoards[depth][++index] = KingAttacks[ffs(king)];
+        attackBoards[depth][++index] = KingAttacks[king];
     }
 
     bool Position::isAttacked(Square const square)
@@ -550,7 +552,7 @@ namespace spezi
 
                 for(auto attackingPiece = static_cast<int>(KNIGHT); attackingPiece != NumberOfPieceTypes; ++attackingPiece)
                 {
-                    auto const max = index + (popcount(allPieces[sideToMove] & individualPieces[PAWN]) << 1);
+                    auto const max = index + (popcount(allPieces[sideToMove] & individualPieces[attackingPiece]) << 1);
                     individualPieces[attackingPiece] ^= to;
                     for(; index!=max; index += 2)
                     {
@@ -630,7 +632,7 @@ namespace spezi
             startPiece = static_cast<int>(PAWN);
             endPiece = NumberOfPieceTypes;
             step = 1;
-            index = 0;
+            index = 0;//(popcount(allPieces[sideToMove])-1) << 1;
         }
         else
         {
@@ -638,8 +640,7 @@ namespace spezi
             endPiece = NULL_PIECE;
             step = -1;
             index = (popcount(allPieces[sideToMove]) << 1) - 2;
-        }
-        
+        }        
         
         for(auto piece = startPiece; piece != endPiece; piece += step)
         {
@@ -651,7 +652,18 @@ namespace spezi
                 individualPieces[piece] ^= from;
                 empty ^= from;
 
-                auto targets = attackBoards[depth][index + 1];
+                BitBoard targets;
+                if(piece == PAWN)
+                {
+                    targets = PawnPushes[sideToMove][ffs(from)] & empty;        
+                    targets |= (targets >> (SquaresPerRank * sideToMove)) & RANKS[4];
+                    targets |= (targets << (SquaresPerRank * (1-sideToMove))) & RANKS[3];
+                    targets &= empty;
+                }
+                else
+                {
+                    targets = attackBoards[depth][index + 1] & empty;
+                }
 
                 while(targets) 
                 {
