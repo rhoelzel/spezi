@@ -322,26 +322,31 @@ namespace spezi
             return;
         }
 
-        evaluationAtDepth[depth] = LOSS[sideToMove];
-        ++numberOfNodesAtDepth[depth];
-        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth];
-
-        auto const quiescence = depth >= maxDepth;
-        
+        /* comment this in for perft checks 
         if(quiescence)
         {
             //std::cout<<getBoardDisplay();
             return;
-        }
-        
+        }*/
+
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+
+        evaluationAtDepth[depth] = LOSS[sideToMove];
+        ++numberOfNodesAtDepth[depth];
+        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
+
+        auto const quiescence = depth >= maxDepth;
+                
+//        std::cout<<"evaluation at depth: "<<depth<<std::endl;
+//        std::cout<<getBoardDisplay()<<std::endl;
         
         if(quiescence)
         {   
             evaluationAtDepth[depth] = evaluateStatically();
+//            std::cout<<"static: "<<evaluationAtDepth[depth]<<std::endl;
             evaluateCaptures(depth);
-            if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry
+            if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
                 && isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
             {
                 // no captures found any more but we are in check
@@ -355,12 +360,14 @@ namespace spezi
                 evaluateNonCaptures<KNIGHT>(depth);
                 evaluateNonCaptures<PAWN>(depth);
 
-                if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
+                if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
                 {
                     // still no legal moves
                     evaluationAtDepth[depth] = LOSS[sideToMove];
+//                    std::cout<<"final q: "<<evaluationAtDepth[depth]<<std::endl;
                 }
             }
+//            std::cout<<"exit q"<<std::endl;
         }
         else
         {
@@ -372,7 +379,7 @@ namespace spezi
             evaluateNonCaptures<QUEEN>(depth);
             evaluateNonCaptures<KING>(depth);
 
-            if(numberOfNodesAtDepth[depth] == numberOfNodesAtEntry)
+            if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
             {
                 // if we are here, there were no legal moves 
                 // if null move is evaluated, we would probably not need to check isAttacked
@@ -381,13 +388,16 @@ namespace spezi
                 {
                     // mate
                     evaluationAtDepth[depth] = LOSS[sideToMove];
+//                    std::cout<<"final r: "<<evaluationAtDepth[depth]<<std::endl;
                 }
                 else
                 {
                     // stalemate
                     evaluationAtDepth[depth] = DRAW;
+//                    std::cout<<"final r: "<<evaluationAtDepth[depth]<<std::endl;
                 }
             }
+//            std::cout<<"exit r"<<std::endl;
         }
 
         sideToMove = other;
@@ -776,10 +786,13 @@ namespace spezi
 
     void Position::updateEval(int const depth)
     {
+//        std::cout<<"updateEval: side "<<sideToMove<<", previous "<<evaluationAtDepth[depth]
+//            <<" one above "<<evaluationAtDepth[depth+1];
         int const sign = sideToMove == WHITE ? 1 : -1;
         evaluationAtDepth[depth] = 
             sign * evaluationAtDepth[depth + 1] > sign * evaluationAtDepth[depth] ?
             evaluationAtDepth[depth + 1] : evaluationAtDepth[depth]; 
+//        std::cout<<" new "<<evaluationAtDepth[depth];
     }
     
     template<Piece piece>

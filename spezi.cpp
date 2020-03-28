@@ -26,6 +26,7 @@ int main(int argc, char** argv)
     }
 
     Position p(fen);
+    //std::cout<<p.getBoardDisplay();
     EvaluationStatistics stats{p.evaluateRecursively(depth)};
 
     std::cout<<"evaluation:                 "<<stats.evaluation<<std::endl;
