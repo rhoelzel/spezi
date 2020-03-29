@@ -5,6 +5,7 @@
 #include "Mobility.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
+#include "ZKey.hpp"
 
 #include <array>
 #include <limits>
@@ -82,6 +83,8 @@ namespace spezi
 
         Color sideToMove = WHITE;
         BitBoard enPassant = EMPTY;
+
+        ZKey zKey;
 
         int maxDepth = 0;
 

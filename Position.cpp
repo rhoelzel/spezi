@@ -69,6 +69,22 @@ namespace spezi
             return retval;
         }   
 
+        ZKey constexpr zKeyFromPieceBoard(std::array<int, NumberOfSquares> pieceBoard)
+        {
+            ZKey result {0};
+            for(Square square = 0; square < NumberOfSquares; ++square)
+            {
+                if(pieceBoard[square] == NO_PIECE)
+                {
+                    continue;
+                }
+                auto const color = pieceBoard[square] / NumberOfPieceTypes;
+                auto const piece = pieceBoard[square] % NumberOfPieceTypes;
+                result ^= PieceKeys[color][piece][square];
+            }
+            return result;
+        }
+
         template<Color color, Piece piece>
         static inline MilliSquare staticPieceEvaluation(BitBoard pieces, int const p)
         {
@@ -213,6 +229,9 @@ namespace spezi
         {
             throw std::runtime_error("Illegal number of moves: " + sections[5]);
         }
+
+        auto pb = pieceBoard(empty, allPieces, individualPieces);
+        zKey = zKeyFromPieceBoard(std::move(pb));
     }
 
     std::string Position::getFen() const

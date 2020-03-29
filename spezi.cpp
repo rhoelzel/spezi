@@ -1,4 +1,5 @@
 #include "Position.hpp"
+#include "ZKey.hpp"
 
 #include <iostream>
 
