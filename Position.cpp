@@ -22,6 +22,11 @@ namespace spezi
             
             for(auto const square : SQUARES)
             {
+                if(!square)
+                {
+                    continue;
+                }
+
                 auto & result = retval[ffs(square)];
                 result = NO_PIECE;    
                 int pieces = 0;
@@ -230,8 +235,9 @@ namespace spezi
             throw std::runtime_error("Illegal number of moves: " + sections[5]);
         }
 
-        auto pb = pieceBoard(empty, allPieces, individualPieces);
-        zKey = zKeyFromPieceBoard(std::move(pb));
+        zKey = sideToMove == WHITE ? 0 : BlackToMoveKey;
+        zKey ^= CastlingKeys[castlingRights];
+        zKey ^= zKeyFromPieceBoard(pieceBoard(empty, allPieces, individualPieces));
     }
 
     std::string Position::getFen() const
@@ -341,25 +347,26 @@ namespace spezi
             return;
         }
 
-        /* comment this in for perft checks 
-        if(quiescence)
-        {
-            //std::cout<<getBoardDisplay();
-            return;
-        }*/
-
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
 
         evaluationAtDepth[depth] = LOSS[sideToMove];
         ++numberOfNodesAtDepth[depth];
         auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
-
-        auto const quiescence = depth >= maxDepth;
                 
 //        std::cout<<"evaluation at depth: "<<depth<<std::endl;
 //        std::cout<<getBoardDisplay()<<std::endl;
-        
+
+        auto const quiescence = depth >= maxDepth;
+
+        //comment this in for perft checks 
+        if(quiescence)
+        {
+            //std::cout << getBoardDisplay();
+            sideToMove = other;
+            return;
+        }/**/
+
         if(quiescence)
         {   
             evaluationAtDepth[depth] = evaluateStatically();
