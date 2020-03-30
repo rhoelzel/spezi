@@ -102,7 +102,14 @@ namespace spezi
             return value;
         }
 
-        static inline char castlingUpdateFlags(BitBoard const from, BitBoard const to)
+        static inline char castlingNonCaptureUpdateFlags(Color const sideToMove, BitBoard const from)
+        {
+            auto const shift = sideToMove * 56;
+            return 0xF & ~((popcount((E1 << shift | H1 << shift) & from) << (sideToMove << 1))
+                    | (popcount((E1 << shift | A1 << shift) & from) << (sideToMove << 1 + 1)));  
+        }
+
+        static inline char castlingCaptureUpdateFlags(BitBoard const from, BitBoard const to)
         {
             auto const wKing = popcount(E1 & from);
             auto const bKing = popcount(E8 & from);
@@ -379,12 +386,7 @@ namespace spezi
                 // try king moves first (more promising for escaping checks)
                 // isAttacked may be left out if a null move search is
                 // performed even in quiescence mode
-                evaluateNonCaptures<KING>(depth);
-                evaluateNonCaptures<QUEEN>(depth);
-                evaluateNonCaptures<ROOK>(depth);
-                evaluateNonCaptures<BISHOP>(depth);
-                evaluateNonCaptures<KNIGHT>(depth);
-                evaluateNonCaptures<PAWN>(depth);
+                evaluateNonCaptures(depth);
 
                 if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
                 {
@@ -398,12 +400,7 @@ namespace spezi
         else
         {
             evaluateCaptures(depth);
-            evaluateNonCaptures<PAWN>(depth);
-            evaluateNonCaptures<KNIGHT>(depth);
-            evaluateNonCaptures<BISHOP>(depth);
-            evaluateNonCaptures<ROOK>(depth);
-            evaluateNonCaptures<QUEEN>(depth);
-            evaluateNonCaptures<KING>(depth);
+            evaluateNonCaptures(depth);
 
             if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
             {
@@ -516,7 +513,7 @@ namespace spezi
                         allPieces[sideToMove] ^= from;
                         individualPieces[attackingPiece] ^= from;
                         empty ^= from;                        
-                        castlingRights &= castlingUpdateFlags(from, to);
+                        castlingRights &= castlingCaptureUpdateFlags(from, to);
 
                         if(attackingPiece == PAWN && from & promotionRank)
                         {
@@ -590,7 +587,6 @@ namespace spezi
         enPassant = enPassantAtEntry;
     }
 
-    template<Piece piece>
     void Position::evaluateNonCaptures(int const depth)
     {
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
@@ -598,127 +594,126 @@ namespace spezi
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
 
-        auto movers = allPieces[sideToMove] & individualPieces[piece];
-        
-        while(movers)
+        for(auto movingPiece = static_cast<int>(PAWN); movingPiece != NumberOfPieceTypes; ++movingPiece)
         {
-            auto const mover = ffs(movers);
-            auto const from = A1 << mover;
-            allPieces[sideToMove] ^= from;
-            individualPieces[piece] ^= from;
-            empty ^= from;
-
-            auto targets = generateNonCaptureSquares<piece>(mover);
-
-            while(targets)
+            auto movers = allPieces[sideToMove] & individualPieces[movingPiece];
+            
+            while(movers)
             {
-                auto const target = ffs(targets);
-                auto const to = A1 << target;
+                auto const mover = ffs(movers);
+                auto const from = A1 << mover;
+                allPieces[sideToMove] ^= from;
+                individualPieces[movingPiece] ^= from;
+                empty ^= from;
 
-                allPieces[sideToMove] ^= to;    
-                empty ^= to;    
-                
-                if constexpr(piece == PAWN)
+                if(movingPiece == KING || movingPiece == ROOK)
                 {
-                    if(from & promotionRank)
+                    castlingRights &= castlingNonCaptureUpdateFlags(sideToMove, from);   
+                }
+
+                auto targets = generateNonCaptureSquares(static_cast<Piece>(movingPiece), mover);
+
+                while(targets)
+                {
+                    auto const target = ffs(targets);
+                    auto const to = A1 << target;
+
+                    allPieces[sideToMove] ^= to;    
+                    empty ^= to;    
+
+                    if(movingPiece == PAWN)
                     {
-                        for(int promotedPiece = static_cast<int>(QUEEN); 
-                            promotedPiece != static_cast<int>(PAWN);
-                            --promotedPiece)
+                        if(from & promotionRank)
                         {
-                            individualPieces[promotedPiece] ^= to;
+                            for(int promotedPiece = static_cast<int>(QUEEN); 
+                                promotedPiece != static_cast<int>(PAWN);
+                                --promotedPiece)
+                            {
+                                individualPieces[promotedPiece] ^= to;
+                                evaluate(depth + 1);
+                                updateEval(depth);                            
+                                individualPieces[promotedPiece] ^= to;
+                            }
+                        }
+                        else
+                        {
+                            individualPieces[PAWN] ^= to;
+                            enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
                             evaluate(depth + 1);
                             updateEval(depth);                            
-                            individualPieces[promotedPiece] ^= to;
+                            individualPieces[PAWN] ^= to;
+                            enPassant = EMPTY;
                         }
-                    }
-                    else
-                    {
-                        individualPieces[PAWN] ^= to;
-                        enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
+                    }                     
+                    else 
+                    {    
+                        individualPieces[movingPiece] ^= to;
                         evaluate(depth + 1);
                         updateEval(depth);                            
-                        individualPieces[PAWN] ^= to;
-                        enPassant = EMPTY;
-                    }                     
-                }
-                else
-                {                    
-                    if constexpr(piece == ROOK || piece == KING)
-                    {
-                        castlingRights &= castlingUpdateFlags(from, to);   
+                        individualPieces[movingPiece] ^= to;
                     }
-                    individualPieces[piece] ^= to;
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    individualPieces[piece] ^= to;
-                    if constexpr(piece == ROOK || piece == KING)
-                    {
-                        castlingRights = castlingRightsAtEntry;
-                    }
-                }
+                    
+                    allPieces[sideToMove] ^= to;
+                    empty ^= to;
 
-                allPieces[sideToMove] ^= to;
-                empty ^= to;
-                targets &= targets - 1;            
-            }
+
+                    targets &= targets - 1;            
+                }
             
-            allPieces[sideToMove] ^= from;
-            individualPieces[piece] ^= from;
-            empty ^= from;
-            movers &= movers - 1;
-        }
+                allPieces[sideToMove] ^= from;
+                individualPieces[movingPiece] ^= from;
+                empty ^= from;
+                castlingRights = castlingRightsAtEntry;
 
-        // castling
-        if constexpr(piece == KING)
-        {
-            auto const shift = sideToMove * 56;
-            auto const K = E1 << shift; 
-
-            if(!isAttacked(ffs(K))) // pretty inefficient, fix later
-            {        
-                if((castlingRights & (1 << (sideToMove << 1)))
-                    && (((empty >> shift) & (F1|G1)) == (F1|G1))
-                    && !isAttacked(ffs(F1 << shift)))
-                {
-                    auto const affectedKingSquares = (E1 | G1) << shift;
-                    auto const affectedRookSquares = (H1 | F1) << shift;
-                    auto const affectedSquares = affectedKingSquares | affectedRookSquares;
-                    castlingRights &= ~(3 << (sideToMove << 1));
-                    allPieces[sideToMove] ^= affectedSquares;
-                    empty ^= affectedSquares;
-                    individualPieces[KING] ^= affectedKingSquares;
-                    individualPieces[ROOK] ^= affectedRookSquares;
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    allPieces[sideToMove] ^= affectedSquares;
-                    empty ^= affectedSquares;
-                    individualPieces[KING] ^= affectedKingSquares;
-                    individualPieces[ROOK] ^= affectedRookSquares;
-                    castlingRights = castlingRightsAtEntry;
-                }
-                if((castlingRights & (2 << (sideToMove << 1)))
-                    && (((empty >> shift) & (B1|C1|D1)) == (B1|C1|D1))
-                    && !isAttacked(ffs(D1 << shift)))
-                {
-                    auto const affectedKingSquares = (E1 | C1) << shift;
-                    auto const affectedRookSquares = (A1 | D1) << shift;
-                    auto const affectedSquares = affectedKingSquares | affectedRookSquares;
-                    castlingRights &= ~(3 << (sideToMove << 1));
-                    allPieces[sideToMove] ^= affectedSquares;
-                    empty ^= affectedSquares;
-                    individualPieces[KING] ^= affectedKingSquares;
-                    individualPieces[ROOK] ^= affectedRookSquares;
-                    evaluate(depth + 1);
-                    updateEval(depth);                            
-                    allPieces[sideToMove] ^= affectedSquares;
-                    empty ^= affectedSquares;
-                    individualPieces[KING] ^= affectedKingSquares;
-                    individualPieces[ROOK] ^= affectedRookSquares;
-                    castlingRights = castlingRightsAtEntry;
-                }
+                movers &= movers - 1;
             }
         }
+
+        auto const shift = sideToMove * 56;
+
+        if((castlingRights & (1 << (sideToMove << 1)))
+            && (((empty >> shift) & (F1|G1)) == (F1|G1))
+            && !isAttacked(ffs(F1 << shift))
+            && !isAttacked(ffs(E1 << shift)))
+        {
+            auto const affectedKingSquares = (E1 | G1) << shift;
+            auto const affectedRookSquares = (H1 | F1) << shift;
+            auto const affectedSquares = affectedKingSquares | affectedRookSquares;
+            castlingRights &= ~(3 << (sideToMove << 1));
+            allPieces[sideToMove] ^= affectedSquares;
+            empty ^= affectedSquares;
+            individualPieces[KING] ^= affectedKingSquares;
+            individualPieces[ROOK] ^= affectedRookSquares;
+            evaluate(depth + 1);
+            updateEval(depth);                            
+            allPieces[sideToMove] ^= affectedSquares;
+            empty ^= affectedSquares;
+            individualPieces[KING] ^= affectedKingSquares;
+            individualPieces[ROOK] ^= affectedRookSquares;
+            castlingRights = castlingRightsAtEntry;
+        }
+        if((castlingRights & (2 << (sideToMove << 1)))
+            && (((empty >> shift) & (B1|C1|D1)) == (B1|C1|D1))
+            && !isAttacked(ffs(D1 << shift))
+            && !isAttacked(ffs(E1 << shift)))
+        {
+            auto const affectedKingSquares = (E1 | C1) << shift;
+            auto const affectedRookSquares = (A1 | D1) << shift;
+            auto const affectedSquares = affectedKingSquares | affectedRookSquares;
+            castlingRights &= ~(3 << (sideToMove << 1));
+            allPieces[sideToMove] ^= affectedSquares;
+            empty ^= affectedSquares;
+            individualPieces[KING] ^= affectedKingSquares;
+            individualPieces[ROOK] ^= affectedRookSquares;
+            evaluate(depth + 1);
+            updateEval(depth);                            
+            allPieces[sideToMove] ^= affectedSquares;
+            empty ^= affectedSquares;
+            individualPieces[KING] ^= affectedKingSquares;
+            individualPieces[ROOK] ^= affectedRookSquares;
+            castlingRights = castlingRightsAtEntry;
+        }
+
         enPassant = enPassantAtEntry;
     }
 
@@ -733,46 +728,41 @@ namespace spezi
 //        std::cout<<" new "<<evaluationAtDepth[depth];
     }
     
-    template<Piece piece>
-    BitBoard Position::generateNonCaptureSquares(Square const origin) const
+    BitBoard Position::generateNonCaptureSquares(Piece const piece, Square const origin) const
     {
-        BitBoard reachable { EMPTY };
-
-        if constexpr(piece == PAWN)
+        switch(piece)
         {
-            reachable = PawnPushes[sideToMove][origin] & empty;        
-            // double pushes from starting position
-            if(sideToMove == WHITE)
+            case PAWN:
             {
-                reachable |= (reachable << SquaresPerRank) & RANKS[3];
+                auto reachable = PawnPushes[sideToMove][origin] & empty;        
+                // double pushes from starting position
+                if(sideToMove == WHITE)
+                {
+                    reachable |= (reachable << SquaresPerRank) & RANKS[3];
+                }
+                else
+                {
+                    reachable |= (reachable >> SquaresPerRank) & RANKS[4];
+                }
+                return reachable & empty;
             }
-            else
-            {
-                reachable |= (reachable >> SquaresPerRank) & RANKS[4];
-            }
+            case KNIGHT:
+                return KnightAttacks[origin] & empty;
+            case BISHOP:
+                return DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])] & empty;
+            case ROOK:        
+                return (RankAttacks[origin][pext(~empty, RankMasks[origin])]
+                        | FileAttacks[origin][pext(~empty, FileMasks[origin])])
+                        & empty;        
+            case QUEEN:
+                return (DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])]
+                        | RankAttacks[origin][pext(~empty, RankMasks[origin])]
+                        | FileAttacks[origin][pext(~empty, FileMasks[origin])])
+                        & empty;  
+            case KING:
+                return KingAttacks[origin] & empty;
+            default:
+                throw std::runtime_error("unknown piece type: " + std::to_string(piece));      
         }
-        
-        if constexpr(piece == KNIGHT)
-        {
-            reachable = KnightAttacks[origin];
-        }
-        
-        if constexpr(piece == BISHOP || piece == QUEEN)
-        {
-            reachable = DiagonalAttacks[origin][pext(~empty, DiagonalMasks[origin])];
-        }
-        
-        if constexpr(piece == ROOK || piece == QUEEN)
-        {
-            reachable |= (RankAttacks[origin][pext(~empty, RankMasks[origin])]
-                        | FileAttacks[origin][pext(~empty, FileMasks[origin])]);        
-        }
-
-        if constexpr(piece == KING)
-        {
-            reachable = KingAttacks[origin];
-        }
-
-        return reachable & empty;
     }
 }
