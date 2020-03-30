@@ -102,13 +102,6 @@ namespace spezi
             return value;
         }
 
-        static inline char castlingNonCaptureUpdateFlags(Color const sideToMove, BitBoard const from)
-        {
-            auto const shift = sideToMove * 56;
-            return 0xF & ~((popcount((E1 << shift | H1 << shift) & from) << (sideToMove << 1))
-                    | (popcount((E1 << shift | A1 << shift) & from) << (sideToMove << 1 + 1)));  
-        }
-
         static inline char castlingCaptureUpdateFlags(BitBoard const from, BitBoard const to)
         {
             auto const wKing = popcount(E1 & from);
@@ -608,7 +601,7 @@ namespace spezi
 
                 if(movingPiece == KING || movingPiece == ROOK)
                 {
-                    castlingRights &= castlingNonCaptureUpdateFlags(sideToMove, from);   
+                    castlingRights &= castlingCaptureUpdateFlags(from, from);   
                 }
 
                 auto targets = generateNonCaptureSquares(static_cast<Piece>(movingPiece), mover);
