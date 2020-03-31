@@ -2,6 +2,7 @@
 
 #include "BitBoard.hpp"
 #include "Color.hpp"
+#include "History.hpp"
 #include "Mobility.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
@@ -22,8 +23,8 @@ namespace spezi
     struct EvaluationStatistics
     {
         MilliSquare evaluation;
-        int maximumDepth;
-        int maximumQuiescenceDepth;
+        int maximumRegularDepth;
+        int maximumReachedDepth;
         int64_t numberOfNodes;
         int64_t numberOfQuiescenceNodes;
         float seconds;
@@ -38,7 +39,7 @@ namespace spezi
         Position(Position & other) = delete;
         Position(Position && other) = delete;
 
-        std::string getFen() const;
+        std::string getZKey() const;
         std::string getBoardDisplay() const;
 
         EvaluationStatistics evaluateRecursively(int depth);
@@ -46,6 +47,8 @@ namespace spezi
 
     private:
         void evaluate(int depth);
+
+        bool repetition(int depth);
 
         bool isAttacked(Square square);
 
@@ -87,6 +90,8 @@ namespace spezi
         ZKey zKey;
 
         int maxDepth = 0;
+
+        History history;
 
         std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> evaluationAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;

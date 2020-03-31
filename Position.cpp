@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <sstream>
+#include <iomanip>
 #include <iostream>
 
 namespace spezi
@@ -238,11 +239,20 @@ namespace spezi
         zKey = sideToMove == WHITE ? 0 : BlackToMoveKey;
         zKey ^= CastlingKeys[castlingRights];
         zKey ^= zKeyFromPieceBoard(pieceBoard(empty, allPieces, individualPieces));
+
+        history.resize(1024);
     }
 
-    std::string Position::getFen() const
+    std::string Position::getZKey() const
     {
-        return std::to_string(halfMoves);
+        std::ostringstream hexRepresentation;
+        hexRepresentation
+            <<std::uppercase
+            <<std::hex
+            <<std::setw(16)
+            <<std::setfill('0')
+            <<zKey;
+        return "0x" + hexRepresentation.str();
     }
 
     std::string Position::getBoardDisplay() const
@@ -299,7 +309,7 @@ namespace spezi
     
             int64_t numberOfNodes = 0;
             int64_t numberOfQuiescenceNodes = 0;
-            auto maximumQuiescenceDepth = 0;
+            auto maximumReachedDepth = 0;
 
             for(auto d = 0; d < MAX_DEPTH + MAX_QUIESCENCE_DEPTH; ++d)
             {
@@ -311,8 +321,9 @@ namespace spezi
                 if(d >= currentMaxDepth)
                 {
                     numberOfQuiescenceNodes += numberOfNodesAtDepth[d];
-                    maximumQuiescenceDepth = d;
                 }
+                    
+                maximumReachedDepth = d;
                 numberOfNodes += numberOfNodesAtDepth[d];
             }
 
@@ -323,7 +334,7 @@ namespace spezi
             {
                 evaluationAtDepth[0],
                 currentMaxDepth,
-                maximumQuiescenceDepth,
+                maximumReachedDepth,
                 numberOfNodes,
                 numberOfQuiescenceNodes,
                 static_cast<float>(duration.count())/1e6f
@@ -347,6 +358,17 @@ namespace spezi
             return;
         }
 
+        // comment this out for perft checks
+        
+        if(repetition(depth))
+        {
+            evaluationAtDepth[depth] = DRAW;
+            std::cout<<".";
+            return;
+        }
+
+        history[depth] = HistoryNode{zKey, halfMoves};
+
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
 
@@ -360,12 +382,12 @@ namespace spezi
         auto const quiescence = depth >= maxDepth;
 
         //comment this in for perft checks 
-        if(quiescence)
+        /*if(quiescence)
         {
             //std::cout << getBoardDisplay();
             sideToMove = other;
             return;
-        }/**/
+        }*/
 
         if(quiescence)
         {   
@@ -419,6 +441,22 @@ namespace spezi
         sideToMove = other;
     }
 
+    bool Position::repetition(int const depth)
+    {
+        auto constexpr minimalFullMovesToLookBack = 2;
+        auto maximalFullMovesToLookBack = halfMoves / 2;
+        for(auto fullMovesToLookBack = minimalFullMovesToLookBack; 
+            fullMovesToLookBack <= maximalFullMovesToLookBack;
+            ++fullMovesToLookBack)
+        {
+            if(history[depth - fullMovesToLookBack * 2].zKey == zKey)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool Position::isAttacked(Square const square)
     {
         auto const other = sideToMove ^ BLACK;
@@ -464,8 +502,11 @@ namespace spezi
         auto const promotionRank = (sideToMove == WHITE ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
         auto const castlingRightsAtEntry = castlingRights;
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
+        auto const halfMovesAtEntry = halfMoves;
+        halfMoves = 0;
 
         // MVV-LVA: queens first
         for(auto attackedPiece = static_cast<int>(QUEEN); attackedPiece >= static_cast<int>(PAWN); --attackedPiece)
@@ -497,6 +538,7 @@ namespace spezi
                 for(auto attackingPiece = static_cast<int>(PAWN); attackingPiece != NumberOfPieceTypes; ++attackingPiece)
                 {
                     individualPieces[attackingPiece] ^= to;
+                    zKey ^= PieceKeys[sideToMove][attackingPiece][target];
 
                     while(attackers[attackingPiece])
                     {
@@ -505,22 +547,30 @@ namespace spezi
                         
                         allPieces[sideToMove] ^= from;
                         individualPieces[attackingPiece] ^= from;
-                        empty ^= from;                        
+                        empty ^= from;           
+                        zKey ^= PieceKeys[sideToMove][attackingPiece][attacker];
+                        zKey ^= CastlingKeys[castlingRights];             
                         castlingRights &= castlingCaptureUpdateFlags(from, to);
+                        zKey ^= CastlingKeys[castlingRights];             
 
                         if(attackingPiece == PAWN && from & promotionRank)
                         {
                             individualPieces[attackingPiece] ^= to;
+                            zKey ^= PieceKeys[sideToMove][attackingPiece][target];
                             for(int promotedPiece = static_cast<int>(QUEEN); 
                                 promotedPiece != static_cast<int>(PAWN);
                                 --promotedPiece)
                             {
                                 individualPieces[promotedPiece] ^= to;
+                                zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
-                                updateEval(depth);                            
+                                updateEval(depth);
+                                --halfMoves;                            
                                 individualPieces[promotedPiece] ^= to;
+                                zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                             }            
                             individualPieces[attackingPiece] ^= to;
+                            zKey ^= PieceKeys[sideToMove][attackingPiece][target];
                         }
                         else
                         { 
@@ -531,12 +581,16 @@ namespace spezi
                         allPieces[sideToMove] ^= from;
                         individualPieces[attackingPiece] ^= from;
                         empty ^= from;
+                        zKey ^= PieceKeys[sideToMove][attackingPiece][attacker];
+                        zKey ^= CastlingKeys[castlingRights];             
                         castlingRights = castlingRightsAtEntry;
+                        zKey ^= CastlingKeys[castlingRights];             
 
                         attackers[attackingPiece] &= attackers[attackingPiece] - 1;
                     }
 
                     individualPieces[attackingPiece] ^= to;
+                    zKey ^= PieceKeys[sideToMove][attackingPiece][target];
                 }
 
                 allPieces[sideToMove] ^= to;
@@ -578,17 +632,22 @@ namespace spezi
         }
 
         enPassant = enPassantAtEntry;
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
+        halfMoves = halfMovesAtEntry;
     }
 
     void Position::evaluateNonCaptures(int const depth)
     {
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
         auto const castlingRightsAtEntry = castlingRights;
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank]: ZKey{0};
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
+        auto const halfMovesAtEntry = halfMoves;
+        ++halfMoves;
 
         for(auto movingPiece = static_cast<int>(PAWN); movingPiece != NumberOfPieceTypes; ++movingPiece)
-        {
+        {   
             auto movers = allPieces[sideToMove] & individualPieces[movingPiece];
             
             while(movers)
@@ -598,10 +657,12 @@ namespace spezi
                 allPieces[sideToMove] ^= from;
                 individualPieces[movingPiece] ^= from;
                 empty ^= from;
-
+                zKey ^= PieceKeys[sideToMove][movingPiece][mover];
                 if(movingPiece == KING || movingPiece == ROOK)
                 {
-                    castlingRights &= castlingCaptureUpdateFlags(from, from);   
+                    zKey ^= CastlingKeys[castlingRights];  
+                    castlingRights &= castlingCaptureUpdateFlags(from, from);
+                    zKey ^= CastlingKeys[castlingRights];
                 }
 
                 auto targets = generateNonCaptureSquares(static_cast<Piece>(movingPiece), mover);
@@ -616,6 +677,8 @@ namespace spezi
 
                     if(movingPiece == PAWN)
                     {
+                        halfMoves = 0;
+
                         if(from & promotionRank)
                         {
                             for(int promotedPiece = static_cast<int>(QUEEN); 
@@ -623,32 +686,41 @@ namespace spezi
                                 --promotedPiece)
                             {
                                 individualPieces[promotedPiece] ^= to;
+                                zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
                                 updateEval(depth);                            
                                 individualPieces[promotedPiece] ^= to;
+                                zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                             }
                         }
                         else
                         {
                             individualPieces[PAWN] ^= to;
+                            zKey ^= PieceKeys[sideToMove][PAWN][target];
                             enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
+                            zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
                             evaluate(depth + 1);
                             updateEval(depth);                            
                             individualPieces[PAWN] ^= to;
+                            zKey ^= PieceKeys[sideToMove][PAWN][target];
+                            zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
                             enPassant = EMPTY;
                         }
+
+                        halfMoves = halfMovesAtEntry + 1;
                     }                     
                     else 
                     {    
                         individualPieces[movingPiece] ^= to;
+                        zKey ^= PieceKeys[sideToMove][movingPiece][target];
                         evaluate(depth + 1);
                         updateEval(depth);                            
                         individualPieces[movingPiece] ^= to;
+                        zKey ^= PieceKeys[sideToMove][movingPiece][target];
                     }
                     
                     allPieces[sideToMove] ^= to;
                     empty ^= to;
-
 
                     targets &= targets - 1;            
                 }
@@ -656,8 +728,14 @@ namespace spezi
                 allPieces[sideToMove] ^= from;
                 individualPieces[movingPiece] ^= from;
                 empty ^= from;
-                castlingRights = castlingRightsAtEntry;
-
+                zKey ^= PieceKeys[sideToMove][movingPiece][mover];
+                if(movingPiece == KING || movingPiece == ROOK)
+                {
+                    zKey ^= CastlingKeys[castlingRights];  
+                    castlingRights = castlingRightsAtEntry;
+                    zKey ^= CastlingKeys[castlingRights];
+                }
+                
                 movers &= movers - 1;
             }
         }
@@ -672,18 +750,30 @@ namespace spezi
             auto const affectedKingSquares = (E1 | G1) << shift;
             auto const affectedRookSquares = (H1 | F1) << shift;
             auto const affectedSquares = affectedKingSquares | affectedRookSquares;
-            castlingRights &= ~(3 << (sideToMove << 1));
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
             individualPieces[ROOK] ^= affectedRookSquares;
+            zKey ^= PieceKeys[sideToMove][KING][e1 + shift];
+            zKey ^= PieceKeys[sideToMove][KING][g1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][h1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][f1 + shift];
+            zKey ^= CastlingKeys[castlingRights];
+            castlingRights &= ~(3 << (sideToMove << 1));
+            zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
             updateEval(depth);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
             individualPieces[ROOK] ^= affectedRookSquares;
+            zKey ^= PieceKeys[sideToMove][KING][e1 + shift];
+            zKey ^= PieceKeys[sideToMove][KING][g1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][h1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][f1 + shift];
+            zKey ^= CastlingKeys[castlingRights];
             castlingRights = castlingRightsAtEntry;
+            zKey ^= CastlingKeys[castlingRights];
         }
         if((castlingRights & (2 << (sideToMove << 1)))
             && (((empty >> shift) & (B1|C1|D1)) == (B1|C1|D1))
@@ -693,21 +783,35 @@ namespace spezi
             auto const affectedKingSquares = (E1 | C1) << shift;
             auto const affectedRookSquares = (A1 | D1) << shift;
             auto const affectedSquares = affectedKingSquares | affectedRookSquares;
-            castlingRights &= ~(3 << (sideToMove << 1));
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
             individualPieces[ROOK] ^= affectedRookSquares;
+            zKey ^= PieceKeys[sideToMove][KING][e1 + shift];
+            zKey ^= PieceKeys[sideToMove][KING][c1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][a1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][d1 + shift];
+            zKey ^= CastlingKeys[castlingRights];
+            castlingRights &= ~(3 << (sideToMove << 1));
+            zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
             updateEval(depth);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
             individualPieces[ROOK] ^= affectedRookSquares;
+            zKey ^= PieceKeys[sideToMove][KING][e1 + shift];
+            zKey ^= PieceKeys[sideToMove][KING][c1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][a1 + shift];
+            zKey ^= PieceKeys[sideToMove][ROOK][d1 + shift];
+            zKey ^= CastlingKeys[castlingRights];
             castlingRights = castlingRightsAtEntry;
+            zKey ^= CastlingKeys[castlingRights];
         }
 
         enPassant = enPassantAtEntry;
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank]: ZKey{0};
+        halfMoves = halfMovesAtEntry;
     }
 
     void Position::updateEval(int const depth)
