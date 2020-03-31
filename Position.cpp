@@ -7,6 +7,8 @@
 #include <iomanip>
 #include <iostream>
 
+#define PERFT
+
 namespace spezi
 {
     namespace
@@ -358,15 +360,13 @@ namespace spezi
             return;
         }
 
-        // comment this out for perft checks
-        
+#ifndef PERFT
         if(repetition(depth))
         {
             evaluationAtDepth[depth] = DRAW;
-            std::cout<<".";
             return;
         }
-
+#endif
         history[depth] = HistoryNode{zKey, halfMoves};
 
         auto const other = sideToMove;
@@ -375,24 +375,18 @@ namespace spezi
         evaluationAtDepth[depth] = LOSS[sideToMove];
         ++numberOfNodesAtDepth[depth];
         auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
-                
-//        std::cout<<"evaluation at depth: "<<depth<<std::endl;
-//        std::cout<<getBoardDisplay()<<std::endl;
-
         auto const quiescence = depth >= maxDepth;
 
-        //comment this in for perft checks 
-        /*if(quiescence)
+#ifdef PERFT
+        if(quiescence)
         {
-            //std::cout << getBoardDisplay();
             sideToMove = other;
             return;
-        }*/
-
+        }
+#endif
         if(quiescence)
         {   
             evaluationAtDepth[depth] = evaluateStatically();
-//            std::cout<<"static: "<<evaluationAtDepth[depth]<<std::endl;
             evaluateCaptures(depth);
             if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
                 && isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
@@ -407,10 +401,8 @@ namespace spezi
                 {
                     // still no legal moves
                     evaluationAtDepth[depth] = LOSS[sideToMove];
-//                    std::cout<<"final q: "<<evaluationAtDepth[depth]<<std::endl;
                 }
             }
-//            std::cout<<"exit q"<<std::endl;
         }
         else
         {
@@ -426,16 +418,13 @@ namespace spezi
                 {
                     // mate
                     evaluationAtDepth[depth] = LOSS[sideToMove];
-//                    std::cout<<"final r: "<<evaluationAtDepth[depth]<<std::endl;
                 }
                 else
                 {
                     // stalemate
                     evaluationAtDepth[depth] = DRAW;
-//                    std::cout<<"final r: "<<evaluationAtDepth[depth]<<std::endl;
                 }
             }
-//            std::cout<<"exit r"<<std::endl;
         }
 
         sideToMove = other;
@@ -564,7 +553,7 @@ namespace spezi
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
-                                updateEval(depth);
+                                updateWindowIfInsideWindow(depth);
                                 --halfMoves;                            
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
@@ -575,7 +564,7 @@ namespace spezi
                         else
                         { 
                             evaluate(depth + 1);
-                            updateEval(depth);                            
+                            updateWindowIfInsideWindow(depth);                            
                         }
 
                         allPieces[sideToMove] ^= from;
@@ -618,7 +607,7 @@ namespace spezi
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
                 evaluate(depth + 1);
-                updateEval(depth);                            
+                updateWindowIfInsideWindow(depth);                            
                 allPieces[sideToMove] ^= from;
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
@@ -688,7 +677,7 @@ namespace spezi
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
-                                updateEval(depth);                            
+                                updateWindowIfInsideWindow(depth);                            
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                             }
@@ -700,7 +689,7 @@ namespace spezi
                             enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
                             zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
                             evaluate(depth + 1);
-                            updateEval(depth);                            
+                            updateWindowIfInsideWindow(depth);                            
                             individualPieces[PAWN] ^= to;
                             zKey ^= PieceKeys[sideToMove][PAWN][target];
                             zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
@@ -714,7 +703,7 @@ namespace spezi
                         individualPieces[movingPiece] ^= to;
                         zKey ^= PieceKeys[sideToMove][movingPiece][target];
                         evaluate(depth + 1);
-                        updateEval(depth);                            
+                        updateWindowIfInsideWindow(depth);                            
                         individualPieces[movingPiece] ^= to;
                         zKey ^= PieceKeys[sideToMove][movingPiece][target];
                     }
@@ -762,7 +751,7 @@ namespace spezi
             castlingRights &= ~(3 << (sideToMove << 1));
             zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
-            updateEval(depth);                            
+            updateWindowIfInsideWindow(depth);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -795,7 +784,7 @@ namespace spezi
             castlingRights &= ~(3 << (sideToMove << 1));
             zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
-            updateEval(depth);                            
+            updateWindowIfInsideWindow(depth);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -814,15 +803,17 @@ namespace spezi
         halfMoves = halfMovesAtEntry;
     }
 
-    void Position::updateEval(int const depth)
+    bool Position::updateWindowIfInsideWindow(int const depth)
     {
-//        std::cout<<"updateEval: side "<<sideToMove<<", previous "<<evaluationAtDepth[depth]
-//            <<" one above "<<evaluationAtDepth[depth+1];
+#ifndef PERFT
         int const sign = sideToMove == WHITE ? 1 : -1;
         evaluationAtDepth[depth] = 
             sign * evaluationAtDepth[depth + 1] > sign * evaluationAtDepth[depth] ?
-            evaluationAtDepth[depth + 1] : evaluationAtDepth[depth]; 
-//        std::cout<<" new "<<evaluationAtDepth[depth];
+            evaluationAtDepth[depth + 1] : evaluationAtDepth[depth];
+        return true;
+#else
+        return true;
+#endif         
     }
     
     BitBoard Position::generateNonCaptureSquares(Piece const piece, Square const origin) const

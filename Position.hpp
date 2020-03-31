@@ -58,7 +58,7 @@ namespace spezi
 
         void evaluateCastling(int depth);
 
-        void updateEval(int depth);
+        bool updateWindowIfInsideWindow(int depth);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
