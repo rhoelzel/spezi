@@ -40,7 +40,7 @@ namespace spezi
         Position(Position && other) = delete;
 
         std::string getZKey() const;
-        std::string getBoardDisplay() const;
+        std::string getBoardDisplay(int indent = 0) const;
 
         EvaluationStatistics evaluateRecursively(int depth);
         MilliSquare evaluateStatically();        
@@ -52,13 +52,13 @@ namespace spezi
 
         bool isAttacked(Square square);
 
-        void evaluateCaptures(int depth);
+        bool evaluateCaptures(int depth);
 
-        void evaluateNonCaptures(int depth);
+        bool evaluateNonCaptures(int depth);
 
         void evaluateCastling(int depth);
 
-        bool updateWindowIfInsideWindow(int depth);
+        bool updateWindowOrCutoff(int depth);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
@@ -93,7 +93,7 @@ namespace spezi
 
         History history;
 
-        std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> evaluationAtDepth;
+        std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
     };
 }
