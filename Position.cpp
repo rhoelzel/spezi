@@ -366,9 +366,10 @@ namespace spezi
             return;
         }
 #endif
-        if(isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+        auto const sign = (sideToMove << 1) - 1;
+        if(isAttacked(sideToMove, ffs(allPieces[other] & individualPieces[KING])))
         {
-            alphaBetaAtDepth[sideToMove][depth] = LOSS[other];
+            alphaBetaAtDepth[sideToMove][depth] = LOSS[other] + sign * ((depth + 1) >> 1);
             sideToMove = other;
             return;
         }
@@ -402,7 +403,7 @@ namespace spezi
             alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
             evaluateCaptures(depth);
             if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
-                && isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+                && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
             {
                 // no captures found any more but we are in check
                 // try king moves first (more promising for escaping checks)
@@ -413,7 +414,7 @@ namespace spezi
                 if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
                 {
                     // still no legal moves
-                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove];
+                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
                 }
             }
         }
@@ -427,10 +428,10 @@ namespace spezi
                 // if we are here, there were no legal moves 
                 // if null move is evaluated, we would probably not need to check isAttacked
                 // anymore (null move would only result in zero additional nodes if in check)
-                if(isAttacked(ffs(allPieces[sideToMove] & individualPieces[KING])))
+                if(isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
                 {
                     // mate
-                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove];
+                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
                 }
                 else
                 {
@@ -459,19 +460,17 @@ namespace spezi
         return false;
     }
 
-    bool Position::isAttacked(Square const square)
+    bool Position::isAttacked(Color const attacking, Square const square)
     {
-        auto const other = sideToMove ^ BLACK;
-
-        return (PawnAttacks[sideToMove][square] & allPieces[other] & individualPieces[PAWN])
-            || (KnightAttacks[square] & allPieces[other] & individualPieces[KNIGHT])
-            || (DiagonalAttacks[square][pext(~empty,DiagonalMasks[square])] & allPieces[other]
+        return (PawnAttacks[attacking ^ BLACK][square] & allPieces[attacking] & individualPieces[PAWN])
+            || (KnightAttacks[square] & allPieces[attacking] & individualPieces[KNIGHT])
+            || (DiagonalAttacks[square][pext(~empty,DiagonalMasks[square])] & allPieces[attacking]
                 & (individualPieces[BISHOP] | individualPieces[QUEEN]))
-            || (RankAttacks[square][pext(~empty, RankMasks[square])] & allPieces[other]
+            || (RankAttacks[square][pext(~empty, RankMasks[square])] & allPieces[attacking]
                 & (individualPieces[ROOK] | individualPieces[QUEEN]))
-            || (FileAttacks[square][pext(~empty, FileMasks[square])] & allPieces[other]
+            || (FileAttacks[square][pext(~empty, FileMasks[square])] & allPieces[attacking]
                 & (individualPieces[ROOK] | individualPieces[QUEEN]))
-            || (KingAttacks[square] & allPieces[other] & individualPieces[KING]);
+            || (KingAttacks[square] & allPieces[attacking] & individualPieces[KING]);
     }   
 
     MilliSquare Position::evaluateStatically()
@@ -755,12 +754,13 @@ namespace spezi
         }
 
         auto const shift = sideToMove * 56;
+        auto const other = static_cast<Color>(sideToMove ^ BLACK); 
 
         if(inWindow
             && (castlingRights & (1 << (sideToMove << 1)))
             && (((empty >> shift) & (F1|G1)) == (F1|G1))
-            && !isAttacked(ffs(F1 << shift))
-            && !isAttacked(ffs(E1 << shift)))
+            && !isAttacked(other, ffs(F1 << shift))
+            && !isAttacked(other, ffs(E1 << shift)))
         {
             auto const affectedKingSquares = (E1 | G1) << shift;
             auto const affectedRookSquares = (H1 | F1) << shift;
@@ -793,8 +793,8 @@ namespace spezi
         if(inWindow &&
             (castlingRights & (2 << (sideToMove << 1)))
             && (((empty >> shift) & (B1|C1|D1)) == (B1|C1|D1))
-            && !isAttacked(ffs(D1 << shift))
-            && !isAttacked(ffs(E1 << shift)))
+            && !isAttacked(other, ffs(D1 << shift))
+            && !isAttacked(other, ffs(E1 << shift)))
         {
             auto const affectedKingSquares = (E1 | C1) << shift;
             auto const affectedRookSquares = (A1 | D1) << shift;
@@ -835,34 +835,21 @@ namespace spezi
     bool Position::updateWindowOrCutoff(int const depth)
     {
 #ifndef PERFT
-        auto const indent = std::string(depth, ' ');
-        /*std::cout<<indent<<"updating result at depth "<<depth<<" after checking"<<std::endl;
-        std::cout<<getBoardDisplay(depth * 2);*/
         auto const other = sideToMove ^ BLACK;
         auto const score = alphaBetaAtDepth[other][depth + 1];
-        /*std::cout<<indent<<"alpha: "<<alphaBetaAtDepth[WHITE][depth]
-            <<", beta: "<<alphaBetaAtDepth[BLACK][depth]<<", score: "<<score<<std::endl;*/
         auto const sign = (other << 1) - 1;
-        /*char constexpr * const ab[] = {"alpha", "beta"}; 
-        char constexpr * const rl[] = {"raising ", "lowering "};*/
  
         if(sign * score >= sign * alphaBetaAtDepth[other][depth])   
         {
-            // beta cutoff
-            alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth]; // verstehen!!
-            //std::cout<<indent<<ab[other]<<" cutoff, setting "<<ab[sideToMove]<<" to "<<alphaBetaAtDepth[other][depth]<<std::endl;
+            // cutoff
+            alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
             return false;
         }
         if(sign * score > sign * alphaBetaAtDepth[sideToMove][depth])
         {
-            // adjust alpha
+            // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
-            //std::cout<<indent<<rl[sideToMove]<<ab[sideToMove]<<" to "<<score<<std::endl;
         }
-        /*else
-        {
-            std::cout<<indent<<"score "<<score<<" is inside window"<<std::endl;
-        }*/
         return true;
 #else
         return true;

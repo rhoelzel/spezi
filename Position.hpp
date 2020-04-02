@@ -11,10 +11,11 @@
 #include <array>
 #include <limits>
 #include <string>
+#include <vector>
 
 namespace spezi
 {
-    auto constexpr MAX_DEPTH = 8;
+    auto constexpr MAX_DEPTH = 64;
     auto constexpr MAX_QUIESCENCE_DEPTH = 64;
     
     MilliSquare constexpr LOSS[NumberOfColors] = {-123456789, 123456789};   
@@ -50,7 +51,7 @@ namespace spezi
 
         bool repetition(int depth);
 
-        bool isAttacked(Square square);
+        bool isAttacked(Color attacking, Square square);
 
         bool evaluateCaptures(int depth);
 
@@ -95,5 +96,6 @@ namespace spezi
 
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
+
     };
 }
