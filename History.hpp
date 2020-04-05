@@ -9,7 +9,6 @@ namespace spezi
     struct HistoryNode
     {
         ZKey zKey;
-        int halfMoves;
     };
 
     using History = std::vector<HistoryNode>; 

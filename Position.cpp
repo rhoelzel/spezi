@@ -357,9 +357,6 @@ namespace spezi
     {   
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
-
-	std::cout<<"depth: "<<depth<<", eval: "<<evaluateStatically()<<std::endl;
-	std::cout<<getBoardDisplay();
 	
 #ifndef PERFT
         if(repetition(depth))
@@ -377,7 +374,7 @@ namespace spezi
             return;
         }
 
-        history[depth] = HistoryNode{zKey, halfMoves};
+        history[depth] = HistoryNode{zKey};
 
         if(depth > 0)
         {
