@@ -31,7 +31,7 @@ namespace spezi
     auto constexpr populationIndex(Square const population) { return population - 3; } 
 
     // Static mobility of a white pawn on d4 on a half full board (3180 MilliSquares) 
-    MilliSquare constexpr PawnUnit = StaticMobilities<WHITE, PAWN>[d4][populationIndex(32)];
+    MilliSquare constexpr PawnUnit = StaticMobilities<WHITE, PAWN>[d4][populationIndex(16)];
 
     float constexpr milliToPawnUnit(MilliSquare const mobility)
     {
