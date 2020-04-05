@@ -358,6 +358,9 @@ namespace spezi
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
 
+	std::cout<<"depth: "<<depth<<", eval: "<<evaluateStatically()<<std::endl;
+	std::cout<<getBoardDisplay();
+	
 #ifndef PERFT
         if(repetition(depth))
         {
@@ -529,7 +532,8 @@ namespace spezi
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
-
+		zKey ^= PieceKeys[other][attackedPiece][target];
+		
                 // generate attackers by finding reverse color attacks from target square
                 BitBoard attackers[NumberOfPieceTypes];
                 attackers[PAWN] = PawnAttacks[other][target] & allPieces[sideToMove] & individualPieces[PAWN];
@@ -603,6 +607,8 @@ namespace spezi
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
+		zKey ^= PieceKeys[other][attackedPiece][target];
+				
                 targets &= targets - 1;
             }
         }
@@ -617,18 +623,23 @@ namespace spezi
             allPieces[sideToMove] ^= enPassantAtEntry;
             allPieces[other] ^= pawn;
             empty ^= (enPassantAtEntry ^ pawn);
-            while(attackers && inWindow)
+	    zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
+	    zKey ^= PieceKeys[sideToMove][PAWN][target];
+	    while(attackers && inWindow)
             {
                 auto const attacker = ffs(attackers);
                 auto const from = A1 << attacker;
                 allPieces[sideToMove] ^= from;
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
+		zKey ^= PieceKeys[sideToMove][PAWN][attacker];
                 evaluate(depth + 1);
                 inWindow = updateWindowOrCutoff(depth);                            
                 allPieces[sideToMove] ^= from;
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
+		zKey ^= PieceKeys[sideToMove][PAWN][attacker];
+				
                 attackers &= attackers - 1;
             }
             individualPieces[PAWN] ^= enPassantAtEntry;
@@ -636,6 +647,8 @@ namespace spezi
             allPieces[sideToMove] ^= enPassantAtEntry;
             allPieces[other] ^= pawn;
             empty ^= (enPassantAtEntry ^ pawn);
+	    zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
+	    zKey ^= PieceKeys[sideToMove][PAWN][target];	    
         }
 
         enPassant = enPassantAtEntry;
