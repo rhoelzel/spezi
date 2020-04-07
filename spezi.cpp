@@ -39,5 +39,6 @@ int main(int argc, char** argv)
     std::cout<<"seconds:                    "<<stats.seconds<<std::endl;
     std::cout<<"nodes per second:           "<<stats.numberOfNodes/stats.seconds<<std::endl;
     std::cout<<p.getZKey()<<std::endl;    
+    std::cout<<p.getPrincipalVariation()<<std::endl;
 }
     

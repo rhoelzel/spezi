@@ -14,10 +14,7 @@
 #include <vector>
 
 namespace spezi
-{
-    auto constexpr MAX_DEPTH = 64;
-    auto constexpr MAX_QUIESCENCE_DEPTH = 64;
-    
+{    
     MilliSquare constexpr LOSS[NumberOfColors] = {-123456789, 123456789};   
     MilliSquare constexpr DRAW = 0;
 
@@ -42,6 +39,7 @@ namespace spezi
 
         std::string getZKey() const;
         std::string getBoardDisplay(int indent = 0) const;
+        std::string getPrincipalVariation() const;
 
         EvaluationStatistics evaluateRecursively(int depth);
         MilliSquare evaluateStatically();        
@@ -59,7 +57,7 @@ namespace spezi
 
         void evaluateCastling(int depth);
 
-        bool updateWindowOrCutoff(int depth);
+        bool updateWindowOrCutoff(int depth, Square source, Square target, ZKey originalPosition);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
@@ -94,8 +92,24 @@ namespace spezi
 
         History history;
 
+        static int constexpr MAX_DEPTH = 64;
+        static int constexpr MAX_QUIESCENCE_DEPTH = 64;
+
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
 
+        static int constexpr PV_TRANSPOSITION_INDEX_BITS = 28;
+        static int constexpr PV_TRANSPOSITION_TABLE_SIZE = 1 << PV_TRANSPOSITION_INDEX_BITS;
+        static int constexpr PV_TRANSPOSITION_INDEX_MASK = PV_TRANSPOSITION_TABLE_SIZE - 1;
+
+        struct PvEntry
+        {
+            ZKey zKey {0};
+            char from {NULL_SQUARE};
+            char to {NULL_SQUARE};
+        };        
+
+        using PvTranspositionTable = std::vector<PvEntry>;
+        PvTranspositionTable pvTranspositionTable {PV_TRANSPOSITION_TABLE_SIZE};
     };
 }

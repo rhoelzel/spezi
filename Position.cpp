@@ -290,6 +290,101 @@ namespace spezi
         return boardDisplay;
     }
 
+    std::string Position::getPrincipalVariation() const
+    {
+        auto key = zKey;
+        auto entry = pvTranspositionTable[key & PV_TRANSPOSITION_INDEX_MASK];
+        
+        BitBoard a[] = { allPieces[WHITE], allPieces[BLACK] };
+        BitBoard i[] = { individualPieces[PAWN], individualPieces[KNIGHT],
+                        individualPieces[BISHOP], individualPieces[ROOK],
+                        individualPieces[QUEEN], individualPieces[KING]};
+
+        auto side = sideToMove;
+
+        std::string result = "";
+
+        while(entry.zKey == key)
+        {
+            auto const s = A1 << entry.from;
+            auto const t = A1 << entry.to;
+            
+            auto const mover = s & i[PAWN] ? PAWN
+                                : s & i[KNIGHT] ? KNIGHT
+                                : s & i[BISHOP] ? BISHOP
+                                : s & i[ROOK] ? ROOK
+                                : s & i[QUEEN] ? QUEEN
+                                : KING;
+                                
+            auto const target = t & i[PAWN] ? PAWN
+                                : t & i[KNIGHT] ? KNIGHT
+                                : t & i[BISHOP] ? BISHOP
+                                : t & i[ROOK] ? ROOK
+                                : t & i[QUEEN] ? QUEEN
+                                : t & i[KING] ? KING
+                                : NULL_PIECE;  
+
+            a[side] ^= s ^ t;
+            i[mover] ^= s ^ t;
+            key ^= PieceKeys[side][mover][entry.from];
+            key ^= PieceKeys[side][mover][entry.to];
+
+            if(target != NULL_PIECE)
+            {
+                a[(side+1)%2] ^= t;
+                i[target] ^= t;
+                key ^= PieceKeys[(side+1)%2][target][entry.to];
+            }
+
+            char constexpr pieces[] = "NBRQK";
+            char constexpr files[] = "abcdefgh";
+            char constexpr ranks[] = "12345678";
+
+            if(mover != PAWN)
+            {
+                result += pieces[mover-1];
+            }
+            if(target!= NULL_PIECE)
+            {
+                result += 'x';
+            }
+            result += files[entry.to%8];
+            result += ranks[entry.to/8];
+            result += " ";
+
+            side = static_cast<Color>((side + 1) % 2);
+            entry = pvTranspositionTable[key & PV_TRANSPOSITION_INDEX_MASK];
+
+      /*      if(mover == PAWN 
+                && (entry.from - entry.to) != SquaresPerRank
+                && (entry.from - entry.to) != SquaresPerRank
+                && target == NULL_PIECE)
+            {
+                //e.p
+            }
+
+            if(mover == P)
+
+            if(mover == KING && entry.source == e1 && entry.target == g1)
+            {
+
+            }
+            if(mover == KING && entry.source == e1 && entry.target == c1)
+            {
+
+            }
+            if(mover == KING && entry.source == e8 && entry.target == g8)
+            {
+
+            }
+            if(mover == KING && entry.source == e8 && entry.target == c8)
+            {
+
+            }*/
+        }
+        return result;
+    }
+
     EvaluationStatistics Position::evaluateRecursively(int const depth)
     {
         if(depth > MAX_DEPTH)
@@ -503,6 +598,7 @@ namespace spezi
         auto const promotionRank = (sideToMove == WHITE ? RANKS[SquaresPerFile-2] : RANKS[1]);
 
         auto const castlingRightsAtEntry = castlingRights;
+        auto const zKeyAtEntry = zKey;
         zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
@@ -529,7 +625,7 @@ namespace spezi
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
-		zKey ^= PieceKeys[other][attackedPiece][target];
+		        zKey ^= PieceKeys[other][attackedPiece][target];
 		
                 // generate attackers by finding reverse color attacks from target square
                 BitBoard attackers[NumberOfPieceTypes];
@@ -572,7 +668,7 @@ namespace spezi
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
-                                inWindow = updateWindowOrCutoff(depth);
+                                inWindow = updateWindowOrCutoff(depth, attacker, target, zKeyAtEntry);
                                 --halfMoves;                            
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
@@ -583,7 +679,7 @@ namespace spezi
                         else
                         { 
                             evaluate(depth + 1);
-                            inWindow = updateWindowOrCutoff(depth);                            
+                            inWindow = updateWindowOrCutoff(depth, attacker, target, zKeyAtEntry);                            
                         }
 
                         allPieces[sideToMove] ^= from;
@@ -604,7 +700,7 @@ namespace spezi
                 allPieces[sideToMove] ^= to;
                 allPieces[other] ^= to;
                 individualPieces[attackedPiece] ^= to;
-		zKey ^= PieceKeys[other][attackedPiece][target];
+		        zKey ^= PieceKeys[other][attackedPiece][target];
 				
                 targets &= targets - 1;
             }
@@ -620,22 +716,22 @@ namespace spezi
             allPieces[sideToMove] ^= enPassantAtEntry;
             allPieces[other] ^= pawn;
             empty ^= (enPassantAtEntry ^ pawn);
-	    zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
-	    zKey ^= PieceKeys[sideToMove][PAWN][target];
-	    while(attackers && inWindow)
+	        zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
+	        zKey ^= PieceKeys[sideToMove][PAWN][target];
+	        while(attackers && inWindow)
             {
                 auto const attacker = ffs(attackers);
                 auto const from = A1 << attacker;
                 allPieces[sideToMove] ^= from;
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
-		zKey ^= PieceKeys[sideToMove][PAWN][attacker];
+		        zKey ^= PieceKeys[sideToMove][PAWN][attacker];
                 evaluate(depth + 1);
-                inWindow = updateWindowOrCutoff(depth);                            
+                inWindow = updateWindowOrCutoff(depth, attacker, target, zKeyAtEntry);                            
                 allPieces[sideToMove] ^= from;
                 individualPieces[PAWN] ^= from;
                 empty ^= from;
-		zKey ^= PieceKeys[sideToMove][PAWN][attacker];
+		        zKey ^= PieceKeys[sideToMove][PAWN][attacker];
 				
                 attackers &= attackers - 1;
             }
@@ -644,8 +740,8 @@ namespace spezi
             allPieces[sideToMove] ^= enPassantAtEntry;
             allPieces[other] ^= pawn;
             empty ^= (enPassantAtEntry ^ pawn);
-	    zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
-	    zKey ^= PieceKeys[sideToMove][PAWN][target];	    
+	        zKey ^= PieceKeys[other][PAWN][ffs(pawn)];
+	        zKey ^= PieceKeys[sideToMove][PAWN][target];	    
         }
 
         enPassant = enPassantAtEntry;
@@ -658,8 +754,10 @@ namespace spezi
     bool Position::evaluateNonCaptures(int const depth)
     {
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
+      
         auto const castlingRightsAtEntry = castlingRights;
-        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank]: ZKey{0};
+        auto const zKeyAtEntry = zKey;
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey{0};
         auto const enPassantAtEntry = enPassant;
         enPassant = EMPTY;
         auto const halfMovesAtEntry = halfMoves;
@@ -711,7 +809,7 @@ namespace spezi
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                                 evaluate(depth + 1);
-                                inWindow = updateWindowOrCutoff(depth);                            
+                                inWindow = updateWindowOrCutoff(depth, mover, target, zKeyAtEntry);                            
                                 individualPieces[promotedPiece] ^= to;
                                 zKey ^= PieceKeys[sideToMove][promotedPiece][target];
                             }
@@ -723,7 +821,7 @@ namespace spezi
                             enPassant = (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[mover];
                             zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
                             evaluate(depth + 1);
-                            inWindow = updateWindowOrCutoff(depth);                            
+                            inWindow = updateWindowOrCutoff(depth, mover, target, zKeyAtEntry);                            
                             individualPieces[PAWN] ^= to;
                             zKey ^= PieceKeys[sideToMove][PAWN][target];
                             zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
@@ -737,7 +835,7 @@ namespace spezi
                         individualPieces[movingPiece] ^= to;
                         zKey ^= PieceKeys[sideToMove][movingPiece][target];
                         evaluate(depth + 1);
-                        inWindow = updateWindowOrCutoff(depth);                            
+                        inWindow = updateWindowOrCutoff(depth, mover, target, zKeyAtEntry);                            
                         individualPieces[movingPiece] ^= to;
                         zKey ^= PieceKeys[sideToMove][movingPiece][target];
                     }
@@ -787,7 +885,7 @@ namespace spezi
             castlingRights &= ~(3 << (sideToMove << 1));
             zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
-            inWindow = updateWindowOrCutoff(depth);                            
+            inWindow = updateWindowOrCutoff(depth, e1 + shift, g1 + shift, zKeyAtEntry);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -821,7 +919,7 @@ namespace spezi
             castlingRights &= ~(3 << (sideToMove << 1));
             zKey ^= CastlingKeys[castlingRights];
             evaluate(depth + 1);
-            inWindow = updateWindowOrCutoff(depth);                            
+            inWindow = updateWindowOrCutoff(depth, e1 + shift, g1 + shift, zKeyAtEntry);                            
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -842,8 +940,12 @@ namespace spezi
         return inWindow;
     }
 
-    bool Position::updateWindowOrCutoff(int const depth)
+    bool Position::updateWindowOrCutoff(
+        int const depth, Square const source, Square const target, ZKey const originalPosition)
     {
+        static int inserts = 0;
+        static int collisions = 0;
+
 #ifndef PERFT
         auto const other = sideToMove ^ BLACK;
         auto const score = alphaBetaAtDepth[other][depth + 1];
@@ -859,6 +961,19 @@ namespace spezi
         {
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
+            auto const already = pvTranspositionTable[originalPosition & PV_TRANSPOSITION_INDEX_MASK].zKey;
+            if(originalPosition != already)
+            {
+                ++inserts;
+            }
+            if(originalPosition!=already&& already!= 0)
+            {
+                std::cout<<"collision at "<<(originalPosition & PV_TRANSPOSITION_INDEX_MASK)<<": "<<already<<", "<<originalPosition<<std::endl;
+                std::cout<<"collisions/inserts: "<<collisions<<"/"<<inserts<<std::endl;
+                ++ collisions;
+            }
+            pvTranspositionTable[originalPosition & PV_TRANSPOSITION_INDEX_MASK] = 
+                PvEntry {originalPosition, static_cast<char>(source), static_cast<char>(target)};
         }
         return true;
 #else
