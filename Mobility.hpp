@@ -33,6 +33,12 @@ namespace spezi
     // Static mobility of a white pawn on d4 on a half full board (3180 MilliSquares) 
     MilliSquare constexpr PawnUnit = StaticMobilities<WHITE, PAWN>[d4][populationIndex(16)];
 
+    // Maximum expected mobility for a position (9 Queens x40000 + 7 Rooks x20000, including a safety margin)
+    MilliSquare constexpr MaxExpectedMobility = 500000;
+
+    // Mate value ( > MaxExpectedMobility, accomodates score reduction for mates with larger ply distance)
+    MilliSquare constexpr MateValue = 500500;   // => scores will fit into a 20 bit segment of a hash entry
+
     float constexpr milliToPawnUnit(MilliSquare const mobility)
     {
         return static_cast<float>(mobility) / static_cast<float>(PawnUnit);

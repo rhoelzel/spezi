@@ -15,7 +15,7 @@
 
 namespace spezi
 {    
-    MilliSquare constexpr LOSS[NumberOfColors] = {-123456789, 123456789};   
+    MilliSquare constexpr LOSS[NumberOfColors] = {-MateValue, MateValue};   
     MilliSquare constexpr DRAW = 0;
 
     struct EvaluationStatistics
@@ -98,7 +98,7 @@ namespace spezi
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
 
-        static int constexpr PV_TRANSPOSITION_INDEX_BITS = 28;
+        static int constexpr PV_TRANSPOSITION_INDEX_BITS = 24;
         static int constexpr PV_TRANSPOSITION_TABLE_SIZE = 1 << PV_TRANSPOSITION_INDEX_BITS;
         static int constexpr PV_TRANSPOSITION_INDEX_MASK = PV_TRANSPOSITION_TABLE_SIZE - 1;
 
