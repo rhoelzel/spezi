@@ -52,6 +52,8 @@ namespace spezi
 
         bool isAttacked(Color attacking, Square square);
 
+        bool evaluateHashMove(int depth);
+
         bool evaluateCaptures(int depth);
 
         bool evaluateNonCaptures(int depth);
@@ -109,6 +111,6 @@ namespace spezi
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
 
-        HashTable pvTranspositionTable {1 << 24};
+        HashTable pvTranspositionTable {1 << 20};
     };
 }

@@ -422,6 +422,15 @@ namespace spezi
             sideToMove = other;
             return;
         }
+
+        auto entry = pvTranspositionTable.get(zKey);
+        if(zKey==entry.zKey && entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth)
+        {
+            alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+            sideToMove = other;
+            return;
+        }
+
 #endif
         auto const sign = (sideToMove << 1) - 1;
         if(isAttacked(sideToMove, ffs(allPieces[other] & individualPieces[KING])))
@@ -458,17 +467,16 @@ namespace spezi
         if(quiescence)
         {   
             alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
-            evaluateCaptures(depth);
-            if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
+            if(evaluateCaptures(depth)
+                && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
                 && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
             {
                 // no captures found any more but we are in check
                 // try king moves first (more promising for escaping checks)
                 // isAttacked may be left out if a null move search is
                 // performed even in quiescence mode
-                evaluateNonCaptures(depth);
-
-                if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
+                if(evaluateNonCaptures(depth)
+                    && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
                 {
                     // still no legal moves
                     alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
@@ -477,10 +485,9 @@ namespace spezi
         }
         else
         {
-            evaluateCaptures(depth);
-            evaluateNonCaptures(depth);
-
-            if(numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
+            if(evaluateCaptures(depth)
+                && evaluateNonCaptures(depth)
+                && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
             {
                 // if we are here, there were no legal moves 
                 // if null move is evaluated, we would probably not need to check isAttacked
@@ -552,6 +559,11 @@ namespace spezi
         value -= staticPieceEvaluation<BLACK, PAWN>(allPieces[BLACK] & individualPieces[PAWN], p);
        
         return value;
+    }
+
+    bool Position::evaluateHashMove(int const /*depth*/)
+    {
+        return false;
     }
 
     bool Position::evaluateCaptures(int const depth)
@@ -925,17 +937,17 @@ namespace spezi
         return inWindow;
     }
 
-    inline bool Position::updateWindowOrCutoff(
-            ZKey originalPosition,
-            int depth,
-            char originalCastling,
-            BitBoard originalEnPassant,
-            Square origin, 
-            Square target,
-            Piece moved,
-            Piece captured,
-            Piece promoted,            
-            char castlingUpdate)
+    bool Position::updateWindowOrCutoff(
+        ZKey originalPosition,
+        int depth,
+        char originalCastling,
+        BitBoard originalEnPassant,
+        Square origin, 
+        Square target,
+        Piece moved,
+        Piece captured,
+        Piece promoted,            
+        char castlingUpdate)
     {
 #ifndef PERFT
         auto const other = sideToMove ^ BLACK;
