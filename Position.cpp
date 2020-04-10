@@ -225,6 +225,20 @@ namespace spezi
             castlingRights = 0;
         }
 
+        if(sections[3] != "-")
+        {
+            if(sections[3].size() != 2
+                || sections[3][0] < 'a'
+                || sections[3][0] > 'h'
+                || sections[3][1] < '1' 
+                || sections[3][1] > '8')
+            {
+                throw std::runtime_error("Illegal en passant square: " + sections[3]);
+            }
+
+            enPassant = FILES[sections[3][0]-'a'] & RANKS[sections[3][1]-'1'];
+        }
+
         halfMoves = std::stoi(sections[4]);
         fullMoves = std::stoi(sections[5]);       
 
