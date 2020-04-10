@@ -10,7 +10,7 @@ namespace spezi
     {
         size_t padToPowerOfTwo(size_t const size)
         {
-            auto result = 2;
+            size_t result = 2;
             while(result < size)
             {
                 result *= 2;
