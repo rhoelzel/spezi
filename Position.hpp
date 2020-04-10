@@ -2,6 +2,7 @@
 
 #include "BitBoard.hpp"
 #include "Color.hpp"
+#include "HashTable.hpp"
 #include "History.hpp"
 #include "Mobility.hpp"
 #include "Piece.hpp"
@@ -57,7 +58,17 @@ namespace spezi
 
         void evaluateCastling(int depth);
 
-        bool updateWindowOrCutoff(int depth, Square source, Square target, ZKey originalPosition);
+        bool updateWindowOrCutoff(
+            ZKey originalPosition,
+            int depth,
+            char originalCastling,
+            BitBoard originalEnPassant,
+            Square origin, 
+            Square target,
+            Piece moved,
+            Piece captured = KING,
+            Piece promoted = KING,            
+            char castlingUpdate = 0);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
@@ -98,18 +109,6 @@ namespace spezi
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH> numberOfNodesAtDepth;
 
-        static int constexpr PV_TRANSPOSITION_INDEX_BITS = 24;
-        static int constexpr PV_TRANSPOSITION_TABLE_SIZE = 1 << PV_TRANSPOSITION_INDEX_BITS;
-        static int constexpr PV_TRANSPOSITION_INDEX_MASK = PV_TRANSPOSITION_TABLE_SIZE - 1;
-
-        struct PvEntry
-        {
-            ZKey zKey {0};
-            char from {NULL_SQUARE};
-            char to {NULL_SQUARE};
-        };        
-
-        using PvTranspositionTable = std::vector<PvEntry>;
-        PvTranspositionTable pvTranspositionTable {PV_TRANSPOSITION_TABLE_SIZE};
+        HashTable pvTranspositionTable {1 << 24};
     };
 }

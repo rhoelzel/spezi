@@ -68,7 +68,7 @@ namespace spezi
             + ", type: " + type[value<HashEntryType, TYPE_MASK>()] + "\n"
             + "move: " + getLongAlgebraicNotation() + "\n"
             + "castling: " + std::to_string(value<unsigned int, CASTLING_BEFORE_MASK>()) 
-            + "->" + std::to_string(value<unsigned int, CASTLING_BEFORE_MASK>() & ~value<unsigned int, CASTLING_UPDATE_MASK>()) + "\n"
+            + "->" + std::to_string(value<unsigned int, CASTLING_BEFORE_MASK>() & value<unsigned int, CASTLING_UPDATE_MASK>()) + "\n"
             + "e.p.: " + epBeforeStr + "->" + epAfterStr + "\n";
     }
 
