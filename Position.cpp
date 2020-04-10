@@ -943,9 +943,6 @@ namespace spezi
     bool Position::updateWindowOrCutoff(
         int const depth, Square const source, Square const target, ZKey const originalPosition)
     {
-        static int inserts = 0;
-        static int collisions = 0;
-
 #ifndef PERFT
         auto const other = sideToMove ^ BLACK;
         auto const score = alphaBetaAtDepth[other][depth + 1];
@@ -961,6 +958,10 @@ namespace spezi
         {
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
+            
+            /*
+            static int inserts = 0;
+            static int collisions = 0;
             auto const already = pvTranspositionTable[originalPosition & PV_TRANSPOSITION_INDEX_MASK].zKey;
             if(originalPosition != already)
             {
@@ -971,7 +972,7 @@ namespace spezi
                 std::cout<<"collision at "<<(originalPosition & PV_TRANSPOSITION_INDEX_MASK)<<": "<<already<<", "<<originalPosition<<std::endl;
                 std::cout<<"collisions/inserts: "<<collisions<<"/"<<inserts<<std::endl;
                 ++ collisions;
-            }
+            }*/
             pvTranspositionTable[originalPosition & PV_TRANSPOSITION_INDEX_MASK] = 
                 PvEntry {originalPosition, static_cast<char>(source), static_cast<char>(target)};
         }
