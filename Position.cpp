@@ -754,7 +754,7 @@ namespace spezi
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
       
         auto const castlingRightsAtEntry = castlingRights;
-        auto castlingUpdate = unsigned char{0xF};
+        unsigned char castlingUpdate = 0xF;
         auto const zKeyAtEntry = zKey;
         zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey{0};
         auto const enPassantAtEntry = enPassant;
@@ -894,7 +894,7 @@ namespace spezi
             evaluate(depth + 1);
             inWindow = updateWindowOrCutoff(
                         zKeyAtEntry, depth, castlingRightsAtEntry, enPassantAtEntry,
-                        e1 + shift, g1 + shift, KING, KING, KING, unsigned char {0xC});
+                        e1 + shift, g1 + shift, KING, KING, KING, 0xC);
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -930,7 +930,7 @@ namespace spezi
             evaluate(depth + 1);
             inWindow = updateWindowOrCutoff(
                         zKeyAtEntry, depth, castlingRightsAtEntry, enPassantAtEntry,
-                        e1 + shift, c1 + shift, KING, KING, KING, unsigned char {0x3});
+                        e1 + shift, c1 + shift, KING, KING, KING, 0x3);
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;

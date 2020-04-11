@@ -67,7 +67,7 @@ namespace spezi
             Piece const moved, 
             Piece const captured = KING, // KING: no piece captured 
             Piece const promoted = KING, // KING: no piece promoted
-            unsigned char const castlingUpdate = char{0xF})
+            unsigned char const castlingUpdate = 0xFu)
         : zKey(zKey)
         {
             move |= castlingBefore;

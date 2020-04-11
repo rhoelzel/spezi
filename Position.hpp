@@ -70,7 +70,7 @@ namespace spezi
             Piece moved,
             Piece captured = KING,
             Piece promoted = KING,            
-            unsigned char castlingUpdate = 0xF);
+            unsigned char castlingUpdate = 0xFu);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
