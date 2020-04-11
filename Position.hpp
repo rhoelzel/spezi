@@ -63,14 +63,14 @@ namespace spezi
         bool updateWindowOrCutoff(
             ZKey originalZKey,
             int depth,
-            char originalCastling,
+            unsigned char originalCastling,
             BitBoard originalEnPassant,
             Square origin, 
             Square target,
             Piece moved,
             Piece captured = KING,
             Piece promoted = KING,            
-            char castlingUpdate = 0xF);
+            unsigned char castlingUpdate = 0xF);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
@@ -94,7 +94,7 @@ namespace spezi
         int halfMoves = 0;
         int fullMoves = 0;
 
-        char castlingRights = 0xF;
+        unsigned char castlingRights = 0xF;
 
         Color sideToMove = WHITE;
         BitBoard enPassant = EMPTY;

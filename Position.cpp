@@ -105,7 +105,7 @@ namespace spezi
             return value;
         }
 
-        static inline char castlingCaptureUpdateFlags(BitBoard const from, BitBoard const to)
+        static inline unsigned char castlingCaptureUpdateFlags(BitBoard const from, BitBoard const to)
         {
             auto const wKing = popcount(E1 & from);
             auto const bKing = popcount(E8 & from);
@@ -322,8 +322,8 @@ namespace spezi
             auto const target = entry.value<Square, HashEntry::TARGET_SQUARE_MASK>();
             auto const epBefore = entry.value<BitBoard, HashEntry::EN_PASSANT_BEFORE_MASK>();
             auto const epAfter = entry.value<BitBoard, HashEntry::EN_PASSANT_AFTER_MASK>();
-            auto const castlingBefore = entry.value<char, HashEntry::CASTLING_BEFORE_MASK>();
-            auto const castlingUpdate = entry.value<char, HashEntry::CASTLING_UPDATE_MASK>();
+            auto const castlingBefore = entry.value<unsigned char, HashEntry::CASTLING_BEFORE_MASK>();
+            auto const castlingUpdate = entry.value<unsigned char, HashEntry::CASTLING_UPDATE_MASK>();
 
             key ^= PieceKeys[side][movedPiece][origin];
 
@@ -754,7 +754,7 @@ namespace spezi
         auto const promotionRank = ((sideToMove == WHITE) ? RANKS[SquaresPerFile-2] : RANKS[1]);
       
         auto const castlingRightsAtEntry = castlingRights;
-        auto castlingUpdate = char{0xF};
+        auto castlingUpdate = unsigned char{0xF};
         auto const zKeyAtEntry = zKey;
         zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey{0};
         auto const enPassantAtEntry = enPassant;
@@ -894,7 +894,7 @@ namespace spezi
             evaluate(depth + 1);
             inWindow = updateWindowOrCutoff(
                         zKeyAtEntry, depth, castlingRightsAtEntry, enPassantAtEntry,
-                        e1 + shift, g1 + shift, KING, KING, KING, char {0xC});
+                        e1 + shift, g1 + shift, KING, KING, KING, unsigned char {0xC});
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -930,7 +930,7 @@ namespace spezi
             evaluate(depth + 1);
             inWindow = updateWindowOrCutoff(
                         zKeyAtEntry, depth, castlingRightsAtEntry, enPassantAtEntry,
-                        e1 + shift, c1 + shift, KING, KING, KING, char {0x3});
+                        e1 + shift, c1 + shift, KING, KING, KING, unsigned char {0x3});
             allPieces[sideToMove] ^= affectedSquares;
             empty ^= affectedSquares;
             individualPieces[KING] ^= affectedKingSquares;
@@ -954,14 +954,14 @@ namespace spezi
     bool Position::updateWindowOrCutoff(
         ZKey originalPosition,
         int depth,
-        char originalCastling,
+        unsigned char originalCastling,
         BitBoard originalEnPassant,
         Square origin, 
         Square target,
         Piece moved,
         Piece captured,
         Piece promoted,            
-        char castlingUpdate)
+        unsigned char castlingUpdate)
     {
 #ifndef PERFT
         auto const other = sideToMove ^ BLACK;
