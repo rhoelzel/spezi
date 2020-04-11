@@ -1,1 +1,0 @@
-char constexpr MATE_IN_TWO_KRk[] = "k7/7R/8/K7/8/8/8/8 w - - 0 1"; 
