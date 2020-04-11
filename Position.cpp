@@ -113,7 +113,7 @@ namespace spezi
             auto const Q = popcount(A1 & (from | to)) | wKing;
             auto const k = popcount(H8 & (from | to)) | bKing;
             auto const q = popcount(A8 & (from | to)) | bKing;
-            return 0xF & ~(K | (Q << 1) | (k << 2) | (q << 3));
+            return ~(K | (Q << 1) | (k << 2) | (q << 3));
         }
     } 
 

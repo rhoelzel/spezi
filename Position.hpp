@@ -61,7 +61,7 @@ namespace spezi
         void evaluateCastling(int depth);
 
         bool updateWindowOrCutoff(
-            ZKey originalPosition,
+            ZKey originalZKey,
             int depth,
             char originalCastling,
             BitBoard originalEnPassant,
@@ -70,7 +70,7 @@ namespace spezi
             Piece moved,
             Piece captured = KING,
             Piece promoted = KING,            
-            char castlingUpdate = 0);
+            char castlingUpdate = 0xF);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
 
