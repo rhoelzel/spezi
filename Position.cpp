@@ -113,7 +113,7 @@ namespace spezi
             auto const Q = popcount(A1 & (from | to)) | wKing;
             auto const k = popcount(H8 & (from | to)) | bKing;
             auto const q = popcount(A8 & (from | to)) | bKing;
-            return ~(K | (Q << 1) | (k << 2) | (q << 3));
+            return 0xF & ~(K | (Q << 1) | (k << 2) | (q << 3));
         }
     } 
 
@@ -313,8 +313,24 @@ namespace spezi
         
         while(entry.zKey == key)
         {
-            result += entry.getLongAlgebraicNotation();
-            
+            auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+            auto const draft = entry.value<int, HashEntry::DRAFT_MASK>();
+
+        //    if(draft != MAX_DEPTH && (score / MaxExpectedMobility || draft > 0))
+            {
+                // cut off at
+                // - terminal positions (mate or stalemate do not have legal moves)
+                // - first quiescence node if not mate (draft > 0)
+                // - but not if quiescence search actually leads to mate (score / MaxExpectedMobility != 0 )
+                auto const tentativeMove = entry.getLongAlgebraicNotation() + "at depth " + 
+                    std::to_string(draft) + " with score " + std::to_string(score) + "\n";
+                result += tentativeMove;
+            }
+         /*   else
+            {
+                break;
+            }*/
+
             auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
             auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
             auto const promotedPiece = entry.value<Piece, HashEntry::PROMOTED_PIECE_MASK>();
@@ -325,6 +341,7 @@ namespace spezi
             auto const castlingBefore = entry.value<unsigned char, HashEntry::CASTLING_BEFORE_MASK>();
             auto const castlingUpdate = entry.value<unsigned char, HashEntry::CASTLING_UPDATE_MASK>();
 
+            key ^= BlackToMoveKey;
             key ^= PieceKeys[side][movedPiece][origin];
 
             if(promotedPiece != KING)
@@ -341,11 +358,11 @@ namespace spezi
                 if(epBefore && target == ffs(epBefore))
                 {
                     auto const pawn = target + ((side << 1) - 1) * SquaresPerRank;
-                    key ^= PieceKeys[(side+1)%2][capturedPiece][pawn];
+                    key ^= PieceKeys[(side + 1) % 2][capturedPiece][pawn];
                 }
                 else
                 {
-                    key ^= PieceKeys[(side+1)%2][capturedPiece][target];
+                    key ^= PieceKeys[(side + 1) % 2][capturedPiece][target];
                 }
             }
             
@@ -355,6 +372,7 @@ namespace spezi
             key ^= CastlingKeys[castlingBefore & castlingUpdate];
 
             side = static_cast<Color>((side + 1) % 2);
+
             entry = pvTranspositionTable.get(key);
         }
 
@@ -380,9 +398,11 @@ namespace spezi
             numberOfNodesAtDepth = {};
 
             sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+            zKey^= BlackToMoveKey;
             evaluate(0);
             sideToMove = static_cast<Color>(sideToMove ^ BLACK);
-    
+            zKey^= BlackToMoveKey;
+
             int64_t numberOfNodes = 0;
             int64_t numberOfQuiescenceNodes = 0;
             auto maximumReachedDepth = 0;
@@ -418,43 +438,35 @@ namespace spezi
         }
         return result;
     }   
-}
 
-#include <iostream>
-
-namespace spezi
-{
     void Position::evaluate(int const depth)
     {   
+        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
+        auto const quiescence = depth >= maxDepth;
+
         auto const other = sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
-	
+        auto const sign = (sideToMove << 1) - 1;
+        zKey ^= BlackToMoveKey;
+
 #ifndef PERFT
         if(repetition(depth))
         {
             alphaBetaAtDepth[sideToMove][depth] = DRAW;
-            sideToMove = other;
-            return;
+            goto exit;
         }
 
-        auto entry = pvTranspositionTable.get(zKey);
-        if(zKey==entry.zKey && entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth)
+        if(!evaluateHashMove(depth))
         {
-            alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
             sideToMove = other;
-            return;
+            goto exit;
         }
-
 #endif
-        auto const sign = (sideToMove << 1) - 1;
         if(isAttacked(sideToMove, ffs(allPieces[other] & individualPieces[KING])))
         {
             alphaBetaAtDepth[sideToMove][depth] = LOSS[other] + sign * ((depth + 1) >> 1);
-            sideToMove = other;
-            return;
+            goto exit;
         }
-
-        history[depth] = HistoryNode{zKey};
 
         if(depth > 0)
         {
@@ -468,14 +480,12 @@ namespace spezi
         }
 
         ++numberOfNodesAtDepth[depth];
-        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
-        auto const quiescence = depth >= maxDepth;
+        history[depth] = HistoryNode{zKey};
 
 #ifdef PERFT
         if(quiescence)
         {
-            sideToMove = other;
-            return;
+            goto exit;
         }
 #endif
         if(quiescence)
@@ -494,6 +504,8 @@ namespace spezi
                 {
                     // still no legal moves
                     alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
+                    auto const hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, alphaBetaAtDepth[sideToMove][depth]); 
+                    pvTranspositionTable.insert(hashEntry);
                 }
             }
         }
@@ -510,16 +522,22 @@ namespace spezi
                 {
                     // mate
                     alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
+                    auto const hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, alphaBetaAtDepth[sideToMove][depth]); 
+                    pvTranspositionTable.insert(hashEntry);
                 }
                 else
                 {
                     // stalemate
                     alphaBetaAtDepth[sideToMove][depth] = DRAW;
+                    auto hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, DRAW); 
+                    pvTranspositionTable.insert(hashEntry);
                 }
             }
         }
 
+    exit:
         sideToMove = other;
+        zKey ^= BlackToMoveKey;
     }
 
     bool Position::repetition(int const depth)
@@ -575,9 +593,184 @@ namespace spezi
         return value;
     }
 
-    bool Position::evaluateHashMove(int const /*depth*/)
+    bool Position::evaluateHashMove(int const depth)
     {
-        return false;
+        auto entry = pvTranspositionTable.get(zKey);
+        if(zKey == entry.zKey) 
+        {
+            if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth)
+            {
+                alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+                return false;
+            }
+
+            auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
+            auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
+            auto const promotedPiece = entry.value<Piece, HashEntry::PROMOTED_PIECE_MASK>();
+            auto const origin = entry.value<Square, HashEntry::ORIGIN_SQUARE_MASK>();
+            auto const target = entry.value<Square, HashEntry::TARGET_SQUARE_MASK>();
+            auto const epBefore = entry.value<BitBoard, HashEntry::EN_PASSANT_BEFORE_MASK>();
+            auto const epAfter = entry.value<BitBoard, HashEntry::EN_PASSANT_AFTER_MASK>();
+            auto const castlingBefore = entry.value<unsigned char, HashEntry::CASTLING_BEFORE_MASK>();
+            auto const castlingUpdate = entry.value<unsigned char, HashEntry::CASTLING_UPDATE_MASK>();
+
+            auto const from = A1 << origin;
+            auto const to = A1 << target;
+
+            zKey ^= PieceKeys[sideToMove][movedPiece][origin];
+            allPieces[sideToMove] ^= from;
+            allPieces[sideToMove] ^= to;
+            individualPieces[movedPiece] ^=from;
+            empty ^= from;
+
+            zKey ^= PieceKeys[sideToMove]
+                [(promotedPiece == KING) * movedPiece + (promotedPiece!=KING) * promotedPiece][target];
+            individualPieces[(promotedPiece == KING) * movedPiece + (promotedPiece!=KING) * promotedPiece] ^= to;
+
+            if(capturedPiece != KING)
+            {
+                if(epBefore && target == ffs(epBefore))
+                {
+                    auto const pawn = target + ((sideToMove << 1) - 1) * SquaresPerRank;
+                    zKey ^= PieceKeys[(sideToMove + 1) % 2][capturedPiece][pawn];
+                    allPieces[(sideToMove + 1) % 2] ^= (A1 << pawn); 
+                    individualPieces[capturedPiece] ^= (A1 << pawn);
+                    empty ^= to;
+                    empty ^= (A1 << pawn);
+                }
+                else
+                {
+                    zKey ^= PieceKeys[(sideToMove + 1) % 2][capturedPiece][target];
+                    allPieces[(sideToMove + 1) % 2] ^= to;
+                    individualPieces[capturedPiece] ^= to; 
+                }
+            }
+            else
+            {
+                empty ^= to;
+
+                if(movedPiece == KING)
+                {
+                    if(origin == e1)
+                    {
+                        if(target == g1)
+                        {
+                            auto const rookSquares = F1 | H1;
+                            allPieces[WHITE] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                            zKey ^= PieceKeys[WHITE][ROOK][f1];
+                            zKey ^= PieceKeys[WHITE][ROOK][h1];
+                        }
+                        else if (target == c1)
+                        {
+                            auto const rookSquares = A1 | D1;
+                            allPieces[WHITE] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                            zKey ^= PieceKeys[WHITE][ROOK][a1];
+                            zKey ^= PieceKeys[WHITE][ROOK][d1];
+                        }
+                    }
+                    else if(origin == e8)
+                    {
+                        if(target == g8)
+                        {
+                            auto const rookSquares = F8 | H8;
+                            allPieces[BLACK] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                            zKey ^= PieceKeys[BLACK][ROOK][f8];
+                            zKey ^= PieceKeys[BLACK][ROOK][h8];
+                        }
+                        else if(target == c8)
+                        {
+                            auto const rookSquares = A8 | D8;
+                            allPieces[BLACK] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                            zKey ^= PieceKeys[BLACK][ROOK][A8];
+                            zKey ^= PieceKeys[BLACK][ROOK][D8];
+                        }
+                    }
+                }
+            }
+
+            zKey ^= epBefore ? EnPassantKeys[ffs(epBefore) % SquaresPerRank] : ZKey {0};
+            zKey ^= epAfter ? EnPassantKeys[ffs(epAfter) % SquaresPerRank] : ZKey {0};
+            zKey ^= CastlingKeys[castlingBefore];
+            zKey ^= CastlingKeys[castlingBefore & castlingUpdate];
+
+
+            // rollback
+            zKey = entry.zKey;        
+            allPieces[sideToMove] ^= from;
+            allPieces[sideToMove] ^= to;
+            individualPieces[movedPiece] ^=from;
+            empty ^= from;
+
+            individualPieces[(promotedPiece == KING) * movedPiece + (promotedPiece!=KING) * promotedPiece] ^= to;
+
+            if(capturedPiece != KING)
+            {
+                if(epBefore && target == ffs(epBefore))
+                {
+                    auto const pawn = target + ((sideToMove << 1) - 1) * SquaresPerRank;
+                    allPieces[(sideToMove + 1) % 2] ^= (A1 << pawn); 
+                    individualPieces[capturedPiece] ^= (A1 << pawn);
+                    empty ^= to;
+                    empty ^= (A1 << pawn);
+                }
+                else
+                {
+                    allPieces[(sideToMove + 1) % 2] ^= to;
+                    individualPieces[capturedPiece] ^= to; 
+                }
+            }
+            else
+            {
+                empty ^= to;
+               
+                if(movedPiece == KING)
+                {
+                    if(origin == e1)
+                    {
+                        if(target == g1)
+                        {
+                            auto const rookSquares = F1 | H1;
+                            allPieces[WHITE] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                        }
+                        else if (target == c1)
+                        {
+                            auto const rookSquares = A1 | D1;
+                            allPieces[WHITE] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                        }
+                    }
+                    else if(origin == e8)
+                    {
+                        if(target == g8)
+                        {
+                            auto const rookSquares = F8 | H8;
+                            allPieces[BLACK] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                        }
+                        else if(target == c8)
+                        {
+                            auto const rookSquares = A8 | D8;
+                            allPieces[BLACK] ^= rookSquares;
+                            individualPieces[ROOK] ^= rookSquares;
+                            empty ^= rookSquares;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     bool Position::evaluateCaptures(int const depth)
@@ -952,7 +1145,7 @@ namespace spezi
     }
 
     bool Position::updateWindowOrCutoff(
-        ZKey originalPosition,
+        ZKey originalZKey,
         int depth,
         unsigned char originalCastling,
         BitBoard originalEnPassant,
@@ -979,21 +1172,7 @@ namespace spezi
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
             
-            /*
-            static int inserts = 0;
-            static int collisions = 0;
-            auto const already = pvTranspositionTable[originalPosition & PV_TRANSPOSITION_INDEX_MASK].zKey;
-            if(originalPosition != already)
-            {
-                ++inserts;
-            }
-            if(originalPosition!=already&& already!= 0)
-            {
-                std::cout<<"collision at "<<(originalPosition & PV_TRANSPOSITION_INDEX_MASK)<<": "<<already<<", "<<originalPosition<<std::endl;
-                std::cout<<"collisions/inserts: "<<collisions<<"/"<<inserts<<std::endl;
-                ++ collisions;
-            }*/
-            auto hashEntry = HashEntry(PV_NODE, originalPosition, maxDepth - depth, 
+            auto hashEntry = HashEntry(PV_NODE, originalZKey, maxDepth - depth, 
                 score, originalCastling, originalEnPassant, origin, target, 
                 moved, captured, promoted, castlingUpdate);
             pvTranspositionTable.insert(hashEntry);

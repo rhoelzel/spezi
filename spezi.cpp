@@ -30,7 +30,11 @@ int main(int argc, char** argv)
     std::cout<<p.getZKey()<<std::endl;
     EvaluationStatistics stats{p.evaluateRecursively(depth)};
 
-    std::cout<<"evaluation:                 "<<stats.evaluation<<std::endl;
+    auto const evaluation = stats.evaluation > MaxExpectedMobility ? "#" + std::to_string(MateValue - stats.evaluation)
+                            : stats.evaluation < -MaxExpectedMobility ? "#" + std::to_string(stats.evaluation + MateValue)
+                            : std::to_string(stats.evaluation);
+
+    std::cout<<"evaluation:                 "<<evaluation<<std::endl;
     std::cout<<"maximum regular depth:      "<<stats.maximumRegularDepth<<std::endl;
     std::cout<<"maximum reached depth:      "<<stats.maximumReachedDepth<<std::endl;
     std::cout<<"nodes:                      "<<stats.numberOfNodes<<std::endl;

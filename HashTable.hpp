@@ -48,11 +48,11 @@ namespace spezi
 
         HashEntry() = default;
 
-        HashEntry(ZKey const zKey, int const draft, MilliSquare const score)
+        HashEntry(HashEntryType const hashEntryType, ZKey const zKey, int const draft, MilliSquare const score)
         : zKey(zKey)
         {
             move |= static_cast<uint_fast64_t>(draft + (1 << 6))<<ffs(DRAFT_MASK);
-            move |= static_cast<uint_fast64_t>(ALL_NODE) << ffs(TYPE_MASK);
+            move |= static_cast<uint_fast64_t>(hashEntryType) << ffs(TYPE_MASK);
             move |= static_cast<uint_fast64_t>(score + (1 << 19))<<ffs(SCORE_MASK);
         }
 
@@ -144,5 +144,6 @@ namespace spezi
     private:
         std::vector<HashEntry> entries;    
         size_t const indexMask;
+
     };
 }
