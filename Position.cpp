@@ -115,6 +115,18 @@ namespace spezi
             auto const q = popcount(A8 & (from | to)) | bKing;
             return 0xF & ~(K | (Q << 1) | (k << 2) | (q << 3));
         }
+
+        template<typename IntegerType>
+        static inline IntegerType absInc(IntegerType const i)
+        {
+            return i + (i > 0) - (i < 0);
+        }
+        
+        template<typename IntegerType>
+        static inline IntegerType absDec(IntegerType const i)
+        {
+            return i - (i > 0) + (i < 0);
+        }
     } 
 
     Position::Position(std::string fen)
@@ -441,12 +453,11 @@ namespace spezi
 
     void Position::evaluate(int const depth)
     {   
-        auto const numberOfNodesAtEntry = numberOfNodesAtDepth[depth + 1];
+        auto const nodesAtEntry = numberOfNodesAtDepth[depth + 1];   
         auto const quiescence = depth >= maxDepth;
-
         auto const other = sideToMove;
+
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
-        auto const sign = (sideToMove << 1) - 1;
         zKey ^= BlackToMoveKey;
 
 #ifndef PERFT
@@ -458,25 +469,19 @@ namespace spezi
 
         if(!evaluateHashMove(depth))
         {
-            sideToMove = other;
             goto exit;
         }
 #endif
         if(isAttacked(sideToMove, ffs(allPieces[other] & individualPieces[KING])))
         {
-            alphaBetaAtDepth[sideToMove][depth] = LOSS[other] + sign * ((depth + 1) >> 1);
+            alphaBetaAtDepth[sideToMove][depth] = LOSS[other];
             goto exit;
         }
 
         if(depth > 0)
         {
-            alphaBetaAtDepth[WHITE][depth] = alphaBetaAtDepth[WHITE][depth-1];
-            alphaBetaAtDepth[BLACK][depth] = alphaBetaAtDepth[BLACK][depth-1];
-        }
-        else
-        {
-            alphaBetaAtDepth[WHITE][depth] = LOSS[WHITE];
-            alphaBetaAtDepth[BLACK][depth] = LOSS[BLACK];
+            alphaBetaAtDepth[WHITE][depth] = absInc(alphaBetaAtDepth[WHITE][depth-1]);
+            alphaBetaAtDepth[BLACK][depth] = absInc(alphaBetaAtDepth[BLACK][depth-1]);
         }
 
         ++numberOfNodesAtDepth[depth];
@@ -489,47 +494,30 @@ namespace spezi
         }
 #endif
         if(quiescence)
-        {   
+        {
             alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
-            if(evaluateCaptures(depth)
-                && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry
-                && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
+            if(evaluateCaptures(depth)  // captures did not produce beta cutoff and
+                && numberOfNodesAtDepth[depth + 1] == nodesAtEntry // no legal captures
+                && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING]))) // in check
             {
-                // no captures found any more but we are in check
-                // try king moves first (more promising for escaping checks)
-                // isAttacked may be left out if a null move search is
-                // performed even in quiescence mode
-                if(evaluateNonCaptures(depth)
-                    && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
-                {
-                    // still no legal moves
-                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
-                    auto const hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, alphaBetaAtDepth[sideToMove][depth]); 
-                    pvTranspositionTable.insert(hashEntry);
-                }
+                // proceed with evaluation of non-captures to evade checks
+                // first, reset current alpha to MateValue (otherwise program will believe
+                // there already is a move with the static evaluation, which is not true) 
+                alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove];
+                evaluateNonCaptures(depth);
             }
         }
         else
         {
-            if(evaluateCaptures(depth)
-                && evaluateNonCaptures(depth)
-                && numberOfNodesAtDepth[depth + 1] == numberOfNodesAtEntry)
+            if(evaluateCaptures(depth) // captures did not produce beta cutoff and              
+                && evaluateNonCaptures(depth) // normal moves did not produce beta cutoff
+                && numberOfNodesAtDepth[depth + 1] == nodesAtEntry) // no legal moves / captures
             {
-                // if we are here, there were no legal moves 
-                // if null move is evaluated, we would probably not need to check isAttacked
-                // anymore (null move would only result in zero additional nodes if in check)
-                if(isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
+                if(!isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
                 {
-                    // mate
-                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove] - sign * ((depth + 1) >> 1);
-                    auto const hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, alphaBetaAtDepth[sideToMove][depth]); 
-                    pvTranspositionTable.insert(hashEntry);
-                }
-                else
-                {
-                    // stalemate
+                    // make sure current position is registered as stalemate, not as mate
                     alphaBetaAtDepth[sideToMove][depth] = DRAW;
-                    auto hashEntry = HashEntry(PV_NODE, zKey, MAX_DEPTH, DRAW); 
+                    auto hashEntry = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW); 
                     pvTranspositionTable.insert(hashEntry);
                 }
             }
@@ -598,7 +586,8 @@ namespace spezi
         auto entry = pvTranspositionTable.get(zKey);
         if(zKey == entry.zKey) 
         {
-            if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth)
+            if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth
+                || entry.value<MilliSquare, HashEntry::SCORE_MASK>() / MaxExpectedMobility) // mate values are exact regardless of depth
             {
                 alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
                 return false;
@@ -1158,7 +1147,7 @@ namespace spezi
     {
 #ifndef PERFT
         auto const other = sideToMove ^ BLACK;
-        auto const score = alphaBetaAtDepth[other][depth + 1];
+        auto const score = absDec(alphaBetaAtDepth[other][depth + 1]);
         auto const sign = (other << 1) - 1;
  
         if(sign * score >= sign * alphaBetaAtDepth[other][depth])   
@@ -1167,6 +1156,7 @@ namespace spezi
             alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
             return false;
         }
+
         if(sign * score > sign * alphaBetaAtDepth[sideToMove][depth])
         {
             // raise alpha / lower beta

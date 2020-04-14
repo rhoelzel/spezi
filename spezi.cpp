@@ -30,8 +30,8 @@ int main(int argc, char** argv)
     std::cout<<p.getZKey()<<std::endl;
     EvaluationStatistics stats{p.evaluateRecursively(depth)};
 
-    auto const evaluation = stats.evaluation > MaxExpectedMobility ? "#" + std::to_string(MateValue - stats.evaluation)
-                            : stats.evaluation < -MaxExpectedMobility ? "#" + std::to_string(stats.evaluation + MateValue)
+    auto const evaluation = stats.evaluation > MaxExpectedMobility ? "#" + std::to_string((MateValue - stats.evaluation) / 2)
+                            : stats.evaluation < -MaxExpectedMobility ? "#" + std::to_string((stats.evaluation + MateValue) / 2)
                             : std::to_string(stats.evaluation);
 
     std::cout<<"evaluation:                 "<<evaluation<<std::endl;
