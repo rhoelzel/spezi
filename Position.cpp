@@ -467,6 +467,8 @@ namespace spezi
             goto exit;
         }
 
+        // TODO: check 50 move rule here!
+
         if(!evaluateHashMove(depth))
         {
             goto exit;
@@ -557,7 +559,7 @@ namespace spezi
             || (KingAttacks[square] & allPieces[attacking] & individualPieces[KING]);
     }   
 
-    MilliSquare Position::evaluateStatically()
+    MilliSquare Position::evaluateStatically() const
     {
         auto const p = populationIndex(popcount(~empty));
         auto value = StaticMobilities<WHITE, KING>[ffs(allPieces[WHITE] & individualPieces[KING])][p];
@@ -603,6 +605,8 @@ namespace spezi
             auto const castlingBefore = entry.value<unsigned char, HashEntry::CASTLING_BEFORE_MASK>();
             auto const castlingUpdate = entry.value<unsigned char, HashEntry::CASTLING_UPDATE_MASK>();
 
+            auto const halfMovesAtEntry = halfMoves;
+
             auto const from = A1 << origin;
             auto const to = A1 << target;
 
@@ -618,6 +622,8 @@ namespace spezi
 
             if(capturedPiece != KING)
             {
+                halfMoves = 0;
+
                 if(epBefore && target == ffs(epBefore))
                 {
                     auto const pawn = target + ((sideToMove << 1) - 1) * SquaresPerRank;
@@ -637,6 +643,7 @@ namespace spezi
             else
             {
                 empty ^= to;
+                halfMoves += movedPiece == PAWN ? -halfMoves : 1; 
 
                 if(movedPiece == KING)
                 {
@@ -690,6 +697,12 @@ namespace spezi
             zKey ^= CastlingKeys[castlingBefore];
             zKey ^= CastlingKeys[castlingBefore & castlingUpdate];
 
+            castlingRights = castlingBefore & castlingUpdate;
+            enPassant = epAfter;
+
+            /*evaluate(depth + 1);
+            auto const inWindow = updateWindowOrCutoff(entry.zKey, depth, castlingBefore, epBefore,
+                                origin, target, movedPiece, capturedPiece, promotedPiece, castlingUpdate);*/
 
             // rollback
             zKey = entry.zKey;        
@@ -758,6 +771,12 @@ namespace spezi
                     }
                 }
             }
+
+            castlingRights = castlingBefore;
+            enPassant = epBefore;
+            halfMoves = halfMovesAtEntry;
+
+            //return inWindow;
         }
         return true;
     }

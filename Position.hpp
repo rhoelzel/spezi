@@ -43,7 +43,7 @@ namespace spezi
         std::string getPrincipalVariation() const;
 
         EvaluationStatistics evaluateRecursively(int depth);
-        MilliSquare evaluateStatically();        
+        MilliSquare evaluateStatically() const;        
 
     private:
         void evaluate(int depth);
