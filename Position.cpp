@@ -591,8 +591,12 @@ namespace spezi
             if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth
                 || entry.value<MilliSquare, HashEntry::SCORE_MASK>() / MaxExpectedMobility) // mate values are exact regardless of depth
             {
-                alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
-                return false;
+                if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == PV_NODE)
+                {              
+                    // exact score => record score and return immediately  
+                    alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+                    return false;
+                }
             }
 
             auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
@@ -700,9 +704,9 @@ namespace spezi
             castlingRights = castlingBefore & castlingUpdate;
             enPassant = epAfter;
 
-            /*evaluate(depth + 1);
+            evaluate(depth + 1);
             auto const inWindow = updateWindowOrCutoff(entry.zKey, depth, castlingBefore, epBefore,
-                                origin, target, movedPiece, capturedPiece, promotedPiece, castlingUpdate);*/
+                                origin, target, movedPiece, capturedPiece, promotedPiece, castlingUpdate);
 
             // rollback
             zKey = entry.zKey;        
@@ -776,7 +780,7 @@ namespace spezi
             enPassant = epBefore;
             halfMoves = halfMovesAtEntry;
 
-            //return inWindow;
+            return inWindow;
         }
         return true;
     }
