@@ -787,9 +787,17 @@ namespace spezi
             {
                 auto const target = ffs(targets);
 
-                auto const diagonalAttacks = DiagonalAttacks[target][pext(~empty, DiagonalMasks[target])];
-                auto const rankAttacks = RankAttacks[target][pext(~empty, RankMasks[target])];
-                auto const fileAttacks = FileAttacks[target][pext(~empty, FileMasks[target])];
+                auto const diagonalAttacks = 
+                    Diagonals[target] & allPieces[sideToMove] & (individualPieces[BISHOP] | individualPieces[QUEEN]) ?
+                    DiagonalAttacks[target][pext(~empty, DiagonalMasks[target])] : EMPTY;
+                
+                auto const rankAttacks = 
+                    Ranks[target] & allPieces[sideToMove] & (individualPieces[ROOK] | individualPieces[QUEEN]) ?
+                RankAttacks[target][pext(~empty, RankMasks[target])] : EMPTY;
+
+                auto const fileAttacks = 
+                    Files[target] & allPieces[sideToMove] & (individualPieces[ROOK] | individualPieces[QUEEN]) ?
+                    FileAttacks[target][pext(~empty, FileMasks[target])] : EMPTY;
 
                 auto const to = A1 << target;
                 allPieces[sideToMove] ^= to;
