@@ -498,6 +498,11 @@ namespace spezi
         if(quiescence)
         {
             alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
+            if(depth - maxDepth > 10)
+            {
+                goto exit;
+            }
+
             if(evaluateCaptures(depth)  // captures did not produce beta cutoff and
                 && numberOfNodesAtDepth[depth + 1] == nodesAtEntry // no legal captures
                 && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING]))) // in check
