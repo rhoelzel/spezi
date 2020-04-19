@@ -318,7 +318,7 @@ namespace spezi
 
     std::string Position::getPrincipalVariation() const
     {
-        auto entry = pvTranspositionTable.get(zKey);
+        auto entry = transpositionTable.get(zKey);
         auto key = zKey;
         auto side = sideToMove;
         std::string result = "";
@@ -385,7 +385,7 @@ namespace spezi
 
             side = static_cast<Color>((side + 1) % 2);
 
-            entry = pvTranspositionTable.get(key);
+            entry = transpositionTable.get(key);
         }
 
         return result;
@@ -520,7 +520,7 @@ namespace spezi
                     // make sure current position is registered as stalemate, not as mate
                     alphaBetaAtDepth[sideToMove][depth] = DRAW;
                     auto hashEntry = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW); 
-                    pvTranspositionTable.insert(hashEntry);
+                    transpositionTable.insert(hashEntry);
                 }
             }
         }
@@ -585,17 +585,30 @@ namespace spezi
 
     bool Position::evaluateHashMove(int const depth)
     {
-        auto entry = pvTranspositionTable.get(zKey);
+        auto entry = transpositionTable.get(zKey);
         if(zKey == entry.zKey) 
         {
             if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth
                 || entry.value<MilliSquare, HashEntry::SCORE_MASK>() / MaxExpectedMobility) // mate values are exact regardless of depth
             {
+                auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
                 if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == PV_NODE)
                 {              
                     // exact score => record score and return immediately  
-                    alphaBetaAtDepth[sideToMove][depth] = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+                    alphaBetaAtDepth[sideToMove][depth] = score;
                     return false;
+                }
+                else
+                {
+                    // cut node, score is a lower/upper bound if white/black to move 
+                    // => check if cutoff still stands and return immediately if true
+                    auto const other = sideToMove ^ BLACK;
+                    auto const sign = (other << 1) - 1;     
+                    if(score >= sign * alphaBetaAtDepth[other][depth])
+                    {
+                        alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
+                        return false;
+                    }
                 }
             }
 
@@ -1185,6 +1198,12 @@ namespace spezi
         {
             // cutoff
             alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
+
+            auto hashEntry = HashEntry(CUT_NODE, originalZKey, maxDepth - depth, 
+                score, originalCastling, originalEnPassant, origin, target, 
+                moved, captured, promoted, castlingUpdate);
+            transpositionTable.insert(hashEntry);
+
             return false;
         }
 
@@ -1196,7 +1215,7 @@ namespace spezi
             auto hashEntry = HashEntry(PV_NODE, originalZKey, maxDepth - depth, 
                 score, originalCastling, originalEnPassant, origin, target, 
                 moved, captured, promoted, castlingUpdate);
-            pvTranspositionTable.insert(hashEntry);
+            transpositionTable.insert(hashEntry);
         }
         return true;
 #else
