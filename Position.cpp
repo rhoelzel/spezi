@@ -454,6 +454,8 @@ namespace spezi
     void Position::evaluate(int const depth)
     {   
         auto const nodesAtEntry = numberOfNodesAtDepth[depth + 1];   
+        ++numberOfNodesAtDepth[depth];
+
         auto const quiescence = depth >= maxDepth;
         auto const other = sideToMove;
 
@@ -461,6 +463,7 @@ namespace spezi
         zKey ^= BlackToMoveKey;
 
 #ifndef PERFT
+        // make early exit checks (repetition, transposition, legality) from least to most expensive
         if(repetition(depth))
         {
             alphaBetaAtDepth[sideToMove][depth] = DRAW;
@@ -468,6 +471,14 @@ namespace spezi
         }
 
         // TODO: check 50 move rule here!
+
+        if(depth > 0)
+        {
+            alphaBetaAtDepth[WHITE][depth] = absInc(alphaBetaAtDepth[WHITE][depth-1]);
+            alphaBetaAtDepth[BLACK][depth] = absInc(alphaBetaAtDepth[BLACK][depth-1]);
+        }
+
+        history[depth] = HistoryNode{zKey};
 
         if(!evaluateHashMove(depth))
         {
@@ -477,17 +488,9 @@ namespace spezi
         if(isAttacked(sideToMove, ffs(allPieces[other] & individualPieces[KING])))
         {
             alphaBetaAtDepth[sideToMove][depth] = LOSS[other];
+            --numberOfNodesAtDepth[depth];     // do not count illegal positions
             goto exit;
-        }
-
-        if(depth > 0)
-        {
-            alphaBetaAtDepth[WHITE][depth] = absInc(alphaBetaAtDepth[WHITE][depth-1]);
-            alphaBetaAtDepth[BLACK][depth] = absInc(alphaBetaAtDepth[BLACK][depth-1]);
-        }
-
-        ++numberOfNodesAtDepth[depth];
-        history[depth] = HistoryNode{zKey};
+        }        
 
 #ifdef PERFT
         if(quiescence)
