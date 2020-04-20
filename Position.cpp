@@ -498,7 +498,7 @@ namespace spezi
         if(quiescence)
         {
             alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
-            if(depth - maxDepth > 10)
+            if(depth - maxDepth == 8)
             {
                 goto exit;
             }
