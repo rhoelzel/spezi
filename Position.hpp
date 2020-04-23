@@ -54,11 +54,11 @@ namespace spezi
 
         bool evaluateHashMove(int depth);
 
+        bool evaluateNullMove(int depth);
+
         bool evaluateCaptures(int depth);
 
         bool evaluateNonCaptures(int depth);
-
-        void evaluateCastling(int depth);
 
         bool updateWindowOrCutoff(
             ZKey originalZKey,
@@ -102,6 +102,7 @@ namespace spezi
         ZKey zKey;
 
         int maxDepth = 0;
+        int nullMoveDepth = 0;
 
         History history;
 

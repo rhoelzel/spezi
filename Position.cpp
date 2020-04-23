@@ -127,6 +127,12 @@ namespace spezi
         {
             return i - (i > 0) + (i < 0);
         }
+
+        template<typename IntegerType>
+        static inline IntegerType absAdd(IntegerType const i, IntegerType const j)
+        {
+            return i + ((i > 0) - (i < 0)) * j;
+        }
     } 
 
     Position::Position(std::string fen)
@@ -519,7 +525,12 @@ namespace spezi
         }
         else
         {
-            if(evaluateCaptures(depth) // captures did not produce beta cutoff and              
+            auto const noNullMoveCutoff = evaluateNullMove(depth);
+            auto const originalNullMoveDepth = nullMoveDepth;
+            nullMoveDepth = 0;
+
+            if(noNullMoveCutoff  // null move did not produce beta cutoff
+                && evaluateCaptures(depth) // captures did not produce beta cutoff and              
                 && evaluateNonCaptures(depth) // normal moves did not produce beta cutoff
                 && numberOfNodesAtDepth[depth + 1] == nodesAtEntry) // no legal moves / captures
             {
@@ -531,6 +542,8 @@ namespace spezi
                     transpositionTable.insert(hashEntry);
                 }
             }
+
+            nullMoveDepth = originalNullMoveDepth;
         }
 
     exit:
@@ -803,6 +816,50 @@ namespace spezi
 
             return inWindow;
         }
+        return true;
+    }
+
+    bool Position::evaluateNullMove(int const depth)
+    {
+        auto constexpr R = 3;   // standard depth decrease R = 3 for null move heuristic
+
+        if(nullMoveDepth == 2)
+        {
+            // no more than two consecutive null moves
+            return true;
+        }            
+
+        auto const other = sideToMove ^ BLACK;
+        auto const beta = absAdd(alphaBetaAtDepth[other][depth - nullMoveDepth * R], (nullMoveDepth + 1) * R);
+
+        // - call evaluation with depth + 3 (instead of + 1)  
+        // - with null window, we are only interested in beta cutoffs, not in alpha increases
+        // - report beta cutoff with return value false, raise alpha to beta as with normal cutoff
+        // - otherwise return true, move is searched normally after this call 
+
+        auto const betaDec = absDec(beta);
+        auto const sign = (other << 1) - 1;     
+        auto const alphaDec = betaDec - sign;
+
+        alphaBetaAtDepth[sideToMove][depth + R - 1] = alphaDec;
+        alphaBetaAtDepth[other][depth + R - 1] = betaDec;
+
+        auto const enPassantAtEntry = enPassant;
+        enPassant = EMPTY;
+        zKey ^= enPassantAtEntry ? EnPassantKeys[ffs(enPassantAtEntry) % SquaresPerRank] : ZKey {0};
+        ++nullMoveDepth;
+        evaluate(depth + R);
+        --nullMoveDepth;
+        zKey ^= enPassantAtEntry ? EnPassantKeys[ffs(enPassantAtEntry) % SquaresPerRank] : ZKey {0};
+        enPassant = enPassantAtEntry;
+
+        auto const score = alphaBetaAtDepth[other][depth + R];
+        if(sign * score >= sign * beta)
+        {
+            alphaBetaAtDepth[sideToMove][depth] = absAdd(beta, -R);
+            return false;
+        }
+
         return true;
     }
 
@@ -1219,7 +1276,7 @@ namespace spezi
         {
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
-            
+
             auto hashEntry = HashEntry(PV_NODE, originalZKey, maxDepth - depth, 
                 score, originalCastling, originalEnPassant, origin, target, 
                 moved, captured, promoted, castlingUpdate);
