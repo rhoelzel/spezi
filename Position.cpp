@@ -848,6 +848,7 @@ namespace spezi
     bool Position::evaluateNullMove(int const depth)
     {
         auto constexpr R = 3;   // standard depth decrease R = 3 for null move heuristic
+        static_assert(MAX_QUIESCENCE_DEPTH >= R - 1 && "Not enough memory reserved for null move evaluation at draft 1");
 
         if(nullMoveDepth == 2)
         {
