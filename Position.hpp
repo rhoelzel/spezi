@@ -111,7 +111,7 @@ namespace spezi
         // draft = 63...-64 for depth = 0...MAX_DEPTH + MAX_QUIESCENCE_DEPTH
         // draft will fit into 7bit segment of hash table entry
         static int constexpr MAX_DEPTH = 16;                // maximum: 63
-        static int constexpr MAX_QUIESCENCE_DEPTH = 64;     // maximum: 64
+        static int constexpr MAX_QUIESCENCE_DEPTH = 8;      // maximum: 64
 
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> numberOfNodesAtDepth;

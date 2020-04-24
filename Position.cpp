@@ -405,7 +405,7 @@ namespace spezi
         }
 
         EvaluationStatistics result;
-        for(auto currentMaxDepth = depth; currentMaxDepth != depth + 1; ++currentMaxDepth)
+        for(auto currentMaxDepth = 0; currentMaxDepth <= depth; currentMaxDepth +=2)
         {
             auto const start = std::chrono::steady_clock::now();
             maxDepth = currentMaxDepth;
@@ -506,15 +506,33 @@ namespace spezi
 #endif
         if(quiescence)
         {
-            alphaBetaAtDepth[sideToMove][depth] = evaluateStatically();
-            if(depth - maxDepth == 8)
+            auto const inCheck = isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING]));
+            auto const score = evaluateStatically();//*/pawnUnitsOnBoard();
+           
+            alphaBetaAtDepth[sideToMove][depth] = score;
+
+            if(!inCheck)
+            {
+                auto const sign = (other << 1) - 1;
+                if(sign * score >= sign * alphaBetaAtDepth[other][depth])
+                {
+                    // beta cutoff;
+                    alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
+                    goto exit;
+                }
+            }
+
+            // TODO: check for beta cutoff here!! (why is this different from trying a null move!?)
+            // or: have we already checked here?! or: do we have a redundant later check then?
+
+            if(depth - maxDepth == MAX_QUIESCENCE_DEPTH)
             {
                 goto exit;
             }
 
             if(evaluateCaptures(depth)  // captures did not produce beta cutoff and
                 && numberOfNodesAtDepth[depth + 1] == nodesAtEntry // no legal captures
-                && isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING]))) // in check
+                && inCheck)
             {
                 // proceed with evaluation of non-captures to evade checks
                 // first, reset current alpha to MateValue (otherwise program will believe
@@ -659,8 +677,14 @@ namespace spezi
                 }
             }
 
-            auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
             auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
+            if(depth >= maxDepth + MAX_QUIESCENCE_DEPTH)
+            {
+                // do not push to another depth level when already at MAX_QUIESCENCE_DEPTH
+                return true;
+            }
+
+            auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
             auto const promotedPiece = entry.value<Piece, HashEntry::PROMOTED_PIECE_MASK>();
             auto const origin = entry.value<Square, HashEntry::ORIGIN_SQUARE_MASK>();
             auto const target = entry.value<Square, HashEntry::TARGET_SQUARE_MASK>();
