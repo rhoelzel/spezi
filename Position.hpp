@@ -44,6 +44,7 @@ namespace spezi
 
         EvaluationStatistics evaluateRecursively(int depth);
         MilliSquare evaluateStatically() const;        
+        MilliSquare pawnUnitsOnBoard() const; 
 
     private:
         void evaluate(int depth);

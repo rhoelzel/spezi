@@ -580,6 +580,32 @@ namespace spezi
             || (KingAttacks[square] & allPieces[attacking] & individualPieces[KING]);
     }   
 
+    MilliSquare Position::pawnUnitsOnBoard() const
+    {
+        auto const whitePieces =
+            popcount(allPieces[WHITE] & individualPieces[QUEEN]) * 9 +
+            popcount(allPieces[WHITE] & individualPieces[ROOK]) * 5 +
+            popcount(allPieces[WHITE] & (individualPieces[BISHOP] | individualPieces[KNIGHT])) * 3 +
+            popcount(allPieces[WHITE] & individualPieces[PAWN]);
+
+        auto const blackPieces =
+            popcount(allPieces[BLACK] & individualPieces[QUEEN]) * 9 +
+            popcount(allPieces[BLACK] & individualPieces[ROOK]) * 5 +
+            popcount(allPieces[BLACK] & (individualPieces[BISHOP] | individualPieces[KNIGHT])) * 3 +
+            popcount(allPieces[BLACK] & individualPieces[PAWN]);
+
+        auto constexpr center = D4|E4|D5|E5;
+        auto constexpr extendedCenter = C3|D3|E3|F3|F4|F5|F6|E6|D6|C6|C5|C4;
+
+        auto const whiteCenter = popcount(allPieces[WHITE] & center); 
+        auto const whiteExtendedCenter = popcount(allPieces[WHITE] & extendedCenter); 
+        
+        auto const blackCenter = popcount(allPieces[BLACK] & center); 
+        auto const blackExtendedCenter = popcount(allPieces[BLACK] & extendedCenter); 
+        
+        return (whitePieces - blackPieces) * PawnUnit + (whiteCenter - blackCenter) * PawnUnit / 3 + (whiteExtendedCenter - blackExtendedCenter) * PawnUnit / 9;
+    }
+
     MilliSquare Position::evaluateStatically() const
     {
         auto const p = populationIndex(popcount(~empty));
