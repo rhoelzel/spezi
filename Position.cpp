@@ -401,7 +401,7 @@ namespace spezi
     {
         if(depth > MAX_DEPTH)
         {
-            throw std::runtime_error("depth " + std::to_string(depth) + "exceeds maximum depth");
+            throw std::runtime_error("depth " + std::to_string(depth) + " exceeds maximum depth");
         }
 
         EvaluationStatistics result;
@@ -881,6 +881,7 @@ namespace spezi
         }            
 
         auto const other = sideToMove ^ BLACK;
+        auto const sign = (other << 1) - 1;     
         auto const beta = absAdd(alphaBetaAtDepth[other][depth - nullMoveDepth * R], (nullMoveDepth + 1) * R);
 
         // - call evaluation with depth + 3 (instead of + 1)  
@@ -889,8 +890,7 @@ namespace spezi
         // - otherwise return true, move is searched normally after this call 
 
         auto const betaDec = absDec(beta);
-        auto const sign = (other << 1) - 1;     
-        auto const alphaDec = betaDec - sign;
+        auto const alphaDec = betaDec - sign;   
 
         alphaBetaAtDepth[sideToMove][depth + R - 1] = alphaDec;
         alphaBetaAtDepth[other][depth + R - 1] = betaDec;
@@ -904,6 +904,8 @@ namespace spezi
         zKey ^= enPassantAtEntry ? EnPassantKeys[ffs(enPassantAtEntry) % SquaresPerRank] : ZKey {0};
         enPassant = enPassantAtEntry;
 
+        // static evaluation values tempi a lot (too much probably)
+        // => cutoff a little more agressively here and add a pawn unit to the score
         auto const score = alphaBetaAtDepth[other][depth + R];
         if(sign * score >= sign * beta)
         {
