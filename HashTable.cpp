@@ -85,10 +85,10 @@ namespace spezi
     {
         auto & oldEntry = entries[newEntry.zKey & indexMask]; 
         
-        if(oldEntry.zKey == 0
-            || oldEntry.value<HashEntryType, HashEntry::TYPE_MASK>() != PV_NODE
+        if(oldEntry.value<HashEntryType, HashEntry::TYPE_MASK>() != PV_NODE
             || oldEntry.value<int, HashEntry::DRAFT_MASK>() <= newEntry.value<int, HashEntry::DRAFT_MASK>())
         {
+            
             oldEntry = newEntry;
             return true;
         }

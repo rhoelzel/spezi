@@ -384,6 +384,30 @@ namespace spezi
                 }
             }
             
+            if(movedPiece == KING)
+            {
+                if(origin == e1 && target == g1)
+                {
+                    key ^= PieceKeys[side][ROOK][h1];
+                    key ^= PieceKeys[side][ROOK][f1];
+                }
+                if(origin == e1 && target == c1)
+                {
+                    key ^= PieceKeys[side][ROOK][a1];
+                    key ^= PieceKeys[side][ROOK][d1];
+                }
+                if(origin == e8 && target == g8)
+                {
+                    key ^= PieceKeys[side][ROOK][h8];
+                    key ^= PieceKeys[side][ROOK][f8];
+                }
+                if(origin == e8 && target == c8)
+                {
+                    key ^= PieceKeys[side][ROOK][a8];
+                    key ^= PieceKeys[side][ROOK][d8];
+                }
+            }
+
             key ^= epBefore ? EnPassantKeys[ffs(epBefore) % SquaresPerRank] : ZKey {0};
             key ^= epAfter ? EnPassantKeys[ffs(epAfter) % SquaresPerRank] : ZKey {0};
             key ^= CastlingKeys[castlingBefore];
