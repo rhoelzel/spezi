@@ -531,6 +531,7 @@ namespace spezi
 
         history[depth] = HistoryNode{zKey};
 
+        hashEntryAtDepth[depth] = {}; 
         if(!evaluateHashMove(depth))
         {
             goto exit;
@@ -548,9 +549,8 @@ namespace spezi
         {
             goto exit;
         }
-#else
-        hashEntryAtDepth[depth] = {}; 
 #endif
+
         if(quiescence)
         {
             auto const inCheck = isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING]));
@@ -1400,6 +1400,11 @@ namespace spezi
 
         if(sign * score > sign * alphaBetaAtDepth[sideToMove][depth])
         {
+            if(depth == 0)
+            {
+                hashEntryAtDepth[depth] = {};
+            }
+
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
 
