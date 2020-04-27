@@ -431,6 +431,17 @@ namespace spezi
         EvaluationStatistics result;
         for(auto currentMaxDepth = 0; currentMaxDepth <= depth; currentMaxDepth +=2)
         {
+            alphaRaises = 0;
+            betaCutoffs = 0;
+            cutEntries = 0;
+            allEntries = 0;
+            exactEntries = 0;
+            cutHashes = 0;
+            allHashes = 0;            
+            exactHashes = 0;
+            hashCutoffs = 0;
+            nullMoveCutoffs = 0;
+            
             auto const start = std::chrono::steady_clock::now();
             maxDepth = currentMaxDepth;
 
@@ -478,6 +489,16 @@ namespace spezi
                 static_cast<float>(duration.count())/1e6f
             };
         }
+        std::cout<<"alpha raises:       "<<alphaRaises<<std::endl;
+        std::cout<<"beta cutoffs:       "<<betaCutoffs<<std::endl;
+        std::cout<<"cut entries:        "<<cutEntries<<std::endl;
+        std::cout<<"all entries:        "<<allEntries<<std::endl;
+        std::cout<<"exact entries:      "<<exactEntries<<std::endl;
+        std::cout<<"cut hashes:         "<<cutHashes<<std::endl;
+        std::cout<<"all hashes:         "<<allHashes<<std::endl;
+        std::cout<<"exact hashes:       "<<exactHashes<<std::endl;
+        std::cout<<"hash cutoffs:       "<<hashCutoffs<<std::endl;
+        std::cout<<"null move cutoffs:  "<<nullMoveCutoffs<<std::endl;
         return result;
     }   
 
@@ -527,6 +548,8 @@ namespace spezi
         {
             goto exit;
         }
+#else
+        hashEntryAtDepth[depth] = {}; 
 #endif
         if(quiescence)
         {
@@ -545,9 +568,6 @@ namespace spezi
                     goto exit;
                 }
             }
-
-            // TODO: check for beta cutoff here!! (why is this different from trying a null move!?)
-            // or: have we already checked here?! or: do we have a redundant later check then?
 
             if(depth - maxDepth == MAX_QUIESCENCE_DEPTH)
             {
@@ -580,13 +600,27 @@ namespace spezi
                 {
                     // make sure current position is registered as stalemate, not as mate
                     alphaBetaAtDepth[sideToMove][depth] = DRAW;
-                    auto hashEntry = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW); 
-                    transpositionTable.insert(hashEntry);
+                    hashEntryAtDepth[depth] = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW); 
                 }
             }
 
             nullMoveDepth = originalNullMoveDepth;
         }
+
+    switch(hashEntryAtDepth[depth].value<HashEntryType, HashEntry::TYPE_MASK>())
+    {
+        case CUT_NODE:
+            transpositionTable.insert(hashEntryAtDepth[depth]);
+            ++cutEntries;
+            break;
+        case ALL_NODE:
+            ++allEntries;
+            break;
+        case PV_NODE:
+            transpositionTable.insert(hashEntryAtDepth[depth]);
+            ++exactEntries;
+            break;
+    }
 
     exit:
         sideToMove = other;
@@ -684,20 +718,27 @@ namespace spezi
                 if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == PV_NODE)
                 {              
                     // exact score => record score and return immediately  
+                    ++exactHashes;
                     alphaBetaAtDepth[sideToMove][depth] = score;
                     return false;
                 }
-                else
+                else if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == CUT_NODE)
                 {
+                    ++cutHashes;
                     // cut node, score is a lower/upper bound if white/black to move 
                     // => check if cutoff still stands and return immediately if true
                     auto const other = sideToMove ^ BLACK;
                     auto const sign = (other << 1) - 1;     
                     if(score >= sign * alphaBetaAtDepth[other][depth])
                     {
+                        ++hashCutoffs;
                         alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
                         return false;
                     }
+                }
+                else
+                {
+                    ++allHashes;
                 }
             }
 
@@ -895,12 +936,14 @@ namespace spezi
 
     bool Position::evaluateNullMove(int const depth)
     {
+#ifdef PERFT
+        return true;
+#endif
         auto constexpr R = 3;   // standard depth decrease R = 3 for null move heuristic
         static_assert(MAX_QUIESCENCE_DEPTH >= R - 1 && "Not enough memory reserved for null move evaluation at draft 1");
 
-        if(nullMoveDepth == 2)
+        if(nullMoveDepth == MAX_CONSECUTIVE_NULL_MOVES)
         {
-            // no more than two consecutive null moves
             return true;
         }            
 
@@ -933,6 +976,7 @@ namespace spezi
         auto const score = alphaBetaAtDepth[other][depth + R];
         if(sign * score >= sign * beta)
         {
+            ++nullMoveCutoffs;
             alphaBetaAtDepth[sideToMove][depth] = absAdd(beta, -R);
             return false;
         }
@@ -1331,7 +1375,9 @@ namespace spezi
         Piece promoted,            
         unsigned char castlingUpdate)
     {
-#ifndef PERFT
+#ifdef PERFT
+        return true;
+#endif 
         auto const other = sideToMove ^ BLACK;
         auto const score = absDec(alphaBetaAtDepth[other][depth + 1]);
         auto const sign = (other << 1) - 1;
@@ -1341,10 +1387,13 @@ namespace spezi
             // cutoff
             alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
 
-            auto hashEntry = HashEntry(CUT_NODE, originalZKey, maxDepth - depth, 
-                score, originalCastling, originalEnPassant, origin, target, 
-                moved, captured, promoted, castlingUpdate);
-            transpositionTable.insert(hashEntry);
+            //if(depth<maxDepth)
+            //{
+                hashEntryAtDepth[depth] = HashEntry(CUT_NODE, originalZKey, maxDepth - depth, 
+                    score, originalCastling, originalEnPassant, origin, target, 
+                    moved, captured, promoted, castlingUpdate);
+            //}
+            ++betaCutoffs;
 
             return false;
         }
@@ -1354,15 +1403,16 @@ namespace spezi
             // raise alpha / lower beta
             alphaBetaAtDepth[sideToMove][depth] = score;
 
-            auto hashEntry = HashEntry(PV_NODE, originalZKey, maxDepth - depth, 
-                score, originalCastling, originalEnPassant, origin, target, 
-                moved, captured, promoted, castlingUpdate);
-            transpositionTable.insert(hashEntry);
+            ++alphaRaises;
+
+//            if(depth < maxDepth)
+//            {
+                hashEntryAtDepth[depth] = HashEntry(PV_NODE, originalZKey, maxDepth - depth, 
+                    score, originalCastling, originalEnPassant, origin, target, 
+                    moved, captured, promoted, castlingUpdate);
+//            }
         }
         return true;
-#else
-        return true;
-#endif         
     }
     
     BitBoard Position::generateNonCaptureSquares(Piece const piece, Square const origin) const
