@@ -491,6 +491,11 @@ namespace spezi
                 numberOfQuiescenceNodes,
                 static_cast<float>(duration.count())/1e6f
             };
+
+            if(result.evaluation > MaxExpectedMobility || result.evaluation < -MaxExpectedMobility)
+            {
+                break;
+            }
         }
         std::cout<<"alpha raises:       "<<alphaRaises<<std::endl;
         std::cout<<"beta cutoffs:       "<<betaCutoffs<<std::endl;
