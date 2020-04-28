@@ -126,13 +126,13 @@ namespace spezi
         // draft will fit into 7bit segment of hash table entry
         static int constexpr MAX_DEPTH = 63;                    // maximum: 63
         static int constexpr MAX_QUIESCENCE_DEPTH = 8;          // maximum: 64
-        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 0;    // >2 does not make any sense    
+        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 2;    // >2 does not make any sense    
 
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> numberOfNodesAtDepth;
         std::array<HashEntry, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> hashEntryAtDepth;
 
-        HashTable transpositionTable {1 << 26};
-        PrincipalVariationTable principalVariationTable;
+        HashTable transpositionTable {1 << 30};
+        PrincipalVariationTable principalVariationTable {2<<24, 8};
     };
 }
