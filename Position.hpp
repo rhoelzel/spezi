@@ -118,6 +118,9 @@ namespace spezi
         int hashCutoffs = 0;
         int nullMoveCutoffs = 0;
 
+        int pvEntries = 0;
+        int pvMisses = 0;
+
         // draft = maxDepth - depth =>
         // draft = 63...-64 for depth = 0...MAX_DEPTH + MAX_QUIESCENCE_DEPTH
         // draft will fit into 7bit segment of hash table entry
@@ -129,6 +132,7 @@ namespace spezi
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> numberOfNodesAtDepth;
         std::array<HashEntry, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> hashEntryAtDepth;
 
-        HashTable transpositionTable {1 << 22};
+        HashTable transpositionTable {1 << 26};
+        PrincipalVariationTable principalVariationTable;
     };
 }

@@ -324,7 +324,7 @@ namespace spezi
 
     std::string Position::getPrincipalVariation() const
     {
-        auto entry = transpositionTable.get(zKey);
+        auto entry = principalVariationTable.get(zKey);
         auto key = zKey;
         auto side = sideToMove;
         std::string result = "";
@@ -415,7 +415,7 @@ namespace spezi
 
             side = static_cast<Color>((side + 1) % 2);
 
-            entry = transpositionTable.get(key);
+            entry = principalVariationTable.get(key);
         }
 
         return result;
@@ -441,7 +441,10 @@ namespace spezi
             exactHashes = 0;
             hashCutoffs = 0;
             nullMoveCutoffs = 0;
-            
+            pvEntries = 0;
+
+            principalVariationTable.clear();
+
             auto const start = std::chrono::steady_clock::now();
             maxDepth = currentMaxDepth;
 
@@ -499,6 +502,8 @@ namespace spezi
         std::cout<<"exact hashes:       "<<exactHashes<<std::endl;
         std::cout<<"hash cutoffs:       "<<hashCutoffs<<std::endl;
         std::cout<<"null move cutoffs:  "<<nullMoveCutoffs<<std::endl;
+        std::cout<<"pv entries:         "<<pvEntries<<std::endl;
+        std::cout<<"pv misses:          "<<pvMisses<<std::endl;
         return result;
     }   
 
@@ -619,6 +624,17 @@ namespace spezi
         case PV_NODE:
             transpositionTable.insert(hashEntryAtDepth[depth]);
             ++exactEntries;
+            if(!quiescence)
+            {
+                if(principalVariationTable.insert(hashEntryAtDepth[depth]))
+                {
+                    ++pvEntries;
+                }
+                else
+                {
+                    ++pvMisses;
+                }
+            }
             break;
     }
 
@@ -1274,6 +1290,7 @@ namespace spezi
                     zKey ^= CastlingKeys[castlingRights];  
                     castlingRights = castlingRightsAtEntry;
                     zKey ^= CastlingKeys[castlingRights];
+                    castlingUpdate = 0xF;
                 }
                 
                 movers &= movers - 1;

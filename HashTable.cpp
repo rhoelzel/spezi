@@ -76,19 +76,19 @@ namespace spezi
     : entries(padToPowerOfTwo(size)), indexMask(entries.size() - 1)
     {}
 
-    HashEntry HashTable::get(ZKey zKey) const
+    HashEntry HashTable::get(ZKey const zKey) const
     {
         return entries[zKey & indexMask];
     }
 
-    bool HashTable::insert(HashEntry newEntry)
+    bool HashTable::insert(HashEntry const newEntry)
     {
         auto & oldEntry = entries[newEntry.zKey & indexMask]; 
         
         if(oldEntry.value<HashEntryType, HashEntry::TYPE_MASK>() != PV_NODE
             || oldEntry.value<int, HashEntry::DRAFT_MASK>() <= newEntry.value<int, HashEntry::DRAFT_MASK>())
         {
-            
+
             oldEntry = newEntry;
             return true;
         }
@@ -101,4 +101,45 @@ namespace spezi
         entries.clear();
         entries.resize(indexMask + 1);
     }
+
+    PrincipalVariationTable::PrincipalVariationTable(size_t const numberOfBuckets, size_t const sizeOfBucket)
+    : entries(padToPowerOfTwo(numberOfBuckets) * sizeOfBucket), indexMask((entries.size() / sizeOfBucket) - 1), bucketSize(sizeOfBucket)
+    {}
+
+    HashEntry PrincipalVariationTable::get(ZKey const zKey) const
+    {
+        auto const index = zKey & indexMask;
+        for(auto i = index; i < index + bucketSize; ++i)
+        {
+            auto const entry = entries[i];
+            if(entry.zKey == zKey)
+            {
+                return entry;
+            }
+        }
+        return HashEntry {};
+    }
+
+    bool PrincipalVariationTable::insert(HashEntry newEntry)
+    {
+        auto const index = newEntry.zKey & indexMask;
+        for(auto i = index; i < index + bucketSize; ++i)
+        {
+            auto & entry = entries[i];
+            if(entry.zKey == 0)
+            {
+                entry = newEntry;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void PrincipalVariationTable::clear()
+    {
+        entries.clear();
+        entries.resize((indexMask + 1) * bucketSize);
+    }
+
 }
