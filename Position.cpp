@@ -421,12 +421,19 @@ namespace spezi
         return result;
     }
 
-    EvaluationStatistics Position::evaluateRecursively(int const depth)
+    EvaluationStatistics Position::evaluateRecursively(int const depth, int const qDepth)
     {
         if(depth > MAX_DEPTH)
         {
             throw std::runtime_error("depth " + std::to_string(depth) + " exceeds maximum depth");
         }
+
+        if(qDepth > MAX_QUIESCENCE_DEPTH)
+        {
+            throw std::runtime_error("qDepth " + std::to_string(depth) + " exceeds maximum quiescence depth");
+        }
+
+        maxQuiescenceDepth = qDepth;
 
         EvaluationStatistics result;
         for(auto currentMaxDepth = 0; currentMaxDepth <= depth; currentMaxDepth +=2)
@@ -570,6 +577,7 @@ namespace spezi
 
             if(!inCheck)
             {
+                // never cut or terminate quiescence search if we are in check
                 auto const sign = (other << 1) - 1;
                 if(sign * score >= sign * alphaBetaAtDepth[other][depth])
                 {
@@ -577,11 +585,10 @@ namespace spezi
                     alphaBetaAtDepth[sideToMove][depth] = alphaBetaAtDepth[other][depth];
                     goto exit;
                 }
-            }
-
-            if(depth - maxDepth == MAX_QUIESCENCE_DEPTH)
-            {
-                goto exit;
+                if(depth - maxDepth == maxQuiescenceDepth)
+                {
+                    goto exit;
+                }
             }
 
             if(evaluateCaptures(depth)  // captures did not produce beta cutoff and
@@ -763,14 +770,8 @@ namespace spezi
                 }
             }
 
-            auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
-            if(depth >= maxDepth + MAX_QUIESCENCE_DEPTH)
-            {
-                // do not push to another depth level when already at MAX_QUIESCENCE_DEPTH
-                return true;
-            }
-
             auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
+            auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
             auto const promotedPiece = entry.value<Piece, HashEntry::PROMOTED_PIECE_MASK>();
             auto const origin = entry.value<Square, HashEntry::ORIGIN_SQUARE_MASK>();
             auto const target = entry.value<Square, HashEntry::TARGET_SQUARE_MASK>();
@@ -961,8 +962,7 @@ namespace spezi
         return true;
 #endif
         auto constexpr R = 3;   // standard depth decrease R = 3 for null move heuristic
-        static_assert(MAX_QUIESCENCE_DEPTH >= R - 1 && "Not enough memory reserved for null move evaluation at draft 1");
-
+        
         if(nullMoveDepth == MAX_CONSECUTIVE_NULL_MOVES)
         {
             return true;

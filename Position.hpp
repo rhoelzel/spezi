@@ -42,7 +42,7 @@ namespace spezi
         std::string getBoardDisplay(int indent = 0) const;
         std::string getPrincipalVariation() const;
 
-        EvaluationStatistics evaluateRecursively(int depth);
+        EvaluationStatistics evaluateRecursively(int depth, int qDepth = 8);
         MilliSquare evaluateStatically() const;       
         MilliSquare pawnUnitsOnBoard() const; 
 
@@ -103,6 +103,7 @@ namespace spezi
         ZKey zKey;
 
         int maxDepth = 0;
+        int maxQuiescenceDepth = 0;
         int nullMoveDepth = 0;
 
         History history;
@@ -124,9 +125,9 @@ namespace spezi
         // draft = maxDepth - depth =>
         // draft = 63...-64 for depth = 0...MAX_DEPTH + MAX_QUIESCENCE_DEPTH
         // draft will fit into 7bit segment of hash table entry
-        static int constexpr MAX_DEPTH = 63;                    // maximum: 63
-        static int constexpr MAX_QUIESCENCE_DEPTH = 8;          // maximum: 64
-        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 2;    // >2 does not make any sense    
+        static int constexpr MAX_DEPTH = 63;                    
+        static int constexpr MAX_QUIESCENCE_DEPTH = 64;         
+        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 2;        
 
         std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> numberOfNodesAtDepth;
