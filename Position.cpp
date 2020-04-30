@@ -739,8 +739,7 @@ namespace spezi
         auto entry = transpositionTable.get(zKey);
         if(zKey == entry.zKey) 
         {
-            if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth
-                || entry.value<MilliSquare, HashEntry::SCORE_MASK>() / MaxExpectedMobility) // mate values are exact regardless of depth
+            if(entry.value<int, HashEntry::DRAFT_MASK>() >= maxDepth - depth)
             {
                 auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
                 if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == PV_NODE)
