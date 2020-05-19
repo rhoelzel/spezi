@@ -41,6 +41,7 @@ namespace spezi
         std::string getZKey() const;
         std::string getBoardDisplay(int indent = 0) const;
         std::string getPrincipalVariation() const;
+        std::string getPrincipalVariationII() const;
 
         EvaluationStatistics evaluateRecursively(int depth, int qDepth = 8);
         MilliSquare evaluateStatically() const;       
@@ -106,6 +107,8 @@ namespace spezi
         int maxQuiescenceDepth = 0;
         int nullMoveDepth = 0;
 
+        int nullMovesOnBranch = 0;
+
         History history;
 
         int alphaRaises = 0;
@@ -127,13 +130,19 @@ namespace spezi
         // draft will fit into 7bit segment of hash table entry
         static int constexpr MAX_DEPTH = 63;                    
         static int constexpr MAX_QUIESCENCE_DEPTH = 64;         
-        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 2;        
+        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 1;        
 
-        std::array<std::array<MilliSquare, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1>, NumberOfColors> alphaBetaAtDepth;
-        std::array<int64_t, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> numberOfNodesAtDepth;
-        std::array<HashEntry, MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1> hashEntryAtDepth;
+        static int constexpr MAX_DEPTH_ARRAY_SIZE = MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1;
+        std::array<std::array<MilliSquare, MAX_DEPTH_ARRAY_SIZE>, NumberOfColors> alphaBetaAtDepth;
+        std::array<int64_t, MAX_DEPTH_ARRAY_SIZE> numberOfNodesAtDepth;
+        std::array<HashEntry, MAX_DEPTH_ARRAY_SIZE> hashEntryAtDepth;
 
-        HashTable transpositionTable {1 << 30};
-        PrincipalVariationTable principalVariationTable {2<<24, 8};
+        static int constexpr PRINCIPAL_VARIATION_ARRAY_SIZE = (MAX_DEPTH_ARRAY_SIZE * (MAX_DEPTH_ARRAY_SIZE + 1)) / 2;
+        std::array<HashEntry, PRINCIPAL_VARIATION_ARRAY_SIZE> principalVariation;
+        void storePrincipalVariation(HashEntry hashEntry, int depth);
+
+        static int constexpr MB = 1 << 20;
+        HashTable transpositionTable {MB * 64};
+        PrincipalVariationTable principalVariationTable {MB * 16, 8};
     };
 }

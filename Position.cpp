@@ -322,33 +322,58 @@ namespace spezi
         return boardDisplay;
     }
 
+    std::string Position::getPrincipalVariationII() const
+    {
+        int depth = 0;
+        std::string result = "";
+
+        while(true)
+        {
+            auto const entry = principalVariation[depth];
+        
+            auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
+            auto const draft = entry.value<int, HashEntry::DRAFT_MASK>();
+
+            if(/*score / MateValue == 1*/
+                (depth == MAX_DEPTH_ARRAY_SIZE )/*|| (score / MaxExpectedMobility == 0 /*&& draft <= 0*/)
+            {
+                break;
+            }
+ 
+            result += entry.getLongAlgebraicNotation() + "at depth " + 
+                std::to_string(draft) + " with score " + std::to_string(score) + "\n";
+
+            ++depth;
+        }
+        return result;
+    }
+
     std::string Position::getPrincipalVariation() const
     {
         auto entry = principalVariationTable.get(zKey);
         auto key = zKey;
         auto side = sideToMove;
         std::string result = "";
-        
+
+        auto counter = 0;
+
         while(entry.zKey == key)
         {
             auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
             auto const draft = entry.value<int, HashEntry::DRAFT_MASK>();
 
-        //    if(draft != MAX_DEPTH && (score / MaxExpectedMobility || draft > 0))
-            {
-                // cut off at
-                // - terminal positions (mate or stalemate do not have legal moves)
-                // - first quiescence node if not mate (draft > 0)
-                // - but not if quiescence search actually leads to mate (score / MaxExpectedMobility != 0 )
-                auto const tentativeMove = entry.getLongAlgebraicNotation() + "at depth " + 
-                    std::to_string(draft) + " with score " + std::to_string(score) + "\n";
-                result += tentativeMove;
-            }
-         /*   else
+            if(score / MateValue == 1   // do not show terminal (illegal) position   
+                || (score / MaxExpectedMobility == 0 && draft < 0)
+                || ++counter > 100      // do not show quiescence moves if not mating
+            )
             {
                 break;
-            }*/
+            }
 
+            auto const tentativeMove = entry.getLongAlgebraicNotation() + "at depth " + 
+                std::to_string(draft) + " with score " + std::to_string(score) + "\n";
+                result += tentativeMove;
+       
             auto const movedPiece = entry.value<Piece, HashEntry::MOVED_PIECE_MASK>();
             auto const capturedPiece = entry.value<Piece, HashEntry::CAPTURED_PIECE_MASK>();
             auto const promotedPiece = entry.value<Piece, HashEntry::PROMOTED_PIECE_MASK>();
@@ -615,9 +640,14 @@ namespace spezi
             {
                 if(!isAttacked(other, ffs(allPieces[sideToMove] & individualPieces[KING])))
                 {
-                    // make sure current position is registered as stalemate, not as mate
                     alphaBetaAtDepth[sideToMove][depth] = DRAW;
                     hashEntryAtDepth[depth] = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW); 
+                }
+                else
+                {
+                    // TODO: brauch ich das wirklich hier (wg. null move?) vielleicht nur die zweite Zeile?
+                    alphaBetaAtDepth[sideToMove][depth] = LOSS[sideToMove];
+                    hashEntryAtDepth[depth] = HashEntry(PV_NODE, zKey, maxDepth - depth, LOSS[sideToMove]); 
                 }
             }
 
@@ -646,6 +676,10 @@ namespace spezi
                 {
                     ++pvMisses;
                 }
+            }
+            if(!nullMovesOnBranch)
+            {
+                storePrincipalVariation(hashEntryAtDepth[depth], depth);
             }
             break;
     }
@@ -986,13 +1020,13 @@ namespace spezi
         enPassant = EMPTY;
         zKey ^= enPassantAtEntry ? EnPassantKeys[ffs(enPassantAtEntry) % SquaresPerRank] : ZKey {0};
         ++nullMoveDepth;
+        ++nullMovesOnBranch;
         evaluate(depth + R);
+        --nullMovesOnBranch;
         --nullMoveDepth;
         zKey ^= enPassantAtEntry ? EnPassantKeys[ffs(enPassantAtEntry) % SquaresPerRank] : ZKey {0};
         enPassant = enPassantAtEntry;
 
-        // static evaluation values tempi a lot (too much probably)
-        // => cutoff a little more agressively here and add a pawn unit to the score
         auto const score = alphaBetaAtDepth[other][depth + R];
         if(sign * score >= sign * beta)
         {
@@ -1477,5 +1511,16 @@ namespace spezi
             default:
                 throw std::runtime_error("unknown piece type: " + std::to_string(piece));      
         }
+    }
+
+    void Position::storePrincipalVariation(HashEntry const hashEntry, int const depth)
+    {
+        auto firstMovePointer = &principalVariation[depth * MAX_DEPTH_ARRAY_SIZE - (depth * (depth - 1)) / 2];
+        auto const lengthOfPrincipalVariation = MAX_DEPTH_ARRAY_SIZE - depth;
+        *firstMovePointer = hashEntry;          
+        std::copy(
+            firstMovePointer + lengthOfPrincipalVariation,
+            firstMovePointer + lengthOfPrincipalVariation * 2 - 1, 
+            firstMovePointer + 1);            
     }
 }
