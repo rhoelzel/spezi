@@ -146,4 +146,21 @@ namespace spezi
         size_t const indexMask;
 
     };
+
+    class PrincipalVariationTable
+    {
+    public:
+        // standard size: 256K buckets x 4 entries per bucket x 16 bytes per entry = 16MB 
+        PrincipalVariationTable(size_t numberOfBuckets = 2 << 18, size_t bucketSize = 4);
+
+        HashEntry get(ZKey zKey) const;
+        bool insert(HashEntry entry);
+
+        void clear();
+   
+    private:
+        std::vector<HashEntry> entries;
+        size_t const indexMask;       
+        size_t const bucketSize;
+    };
 }
