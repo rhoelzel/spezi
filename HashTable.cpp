@@ -108,16 +108,25 @@ namespace spezi
 
     HashEntry PrincipalVariationTable::get(ZKey const zKey) const
     {
+        auto maxDraft = -64;
+        auto maxDraftIndex = entries.size();
+
         auto const index = zKey & indexMask;
         for(auto i = index; i < index + bucketSize; ++i)
         {
             auto const entry = entries[i];
             if(entry.zKey == zKey)
             {
-                return entry;
+                auto const draft = entry.value<int, HashEntry::DRAFT_MASK>();
+                if(maxDraft < draft)
+                {
+                    maxDraftIndex = i;
+                    maxDraft = draft;
+                }
             }
         }
-        return HashEntry {};
+
+        return (maxDraftIndex == entries.size()) ? HashEntry {} : entries[maxDraftIndex];
     }
 
     bool PrincipalVariationTable::insert(HashEntry newEntry)
@@ -126,13 +135,13 @@ namespace spezi
         for(auto i = index; i < index + bucketSize; ++i)
         {
             auto & entry = entries[i];
-            if(entry.zKey == 0)
+            if(entry.zKey == 0
+            || (entry.zKey == newEntry.zKey && entry.value<int, HashEntry::DRAFT_MASK>() <= newEntry.value<int, HashEntry::DRAFT_MASK>()))
             {
                 entry = newEntry;
                 return true;
             }
         }
-
         return false;
     }
 
@@ -141,5 +150,4 @@ namespace spezi
         entries.clear();
         entries.resize((indexMask + 1) * bucketSize);
     }
-
 }
