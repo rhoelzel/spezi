@@ -140,6 +140,25 @@ namespace spezi
         {
             return i + ((i > 0) - (i < 0)) * j;
         }
+
+        std::string scoreString(MilliSquare const evaluation, Color const sideToMove)
+        {
+            if(evaluation > -MaxExpectedMobility && evaluation < MaxExpectedMobility)
+            {
+                return " score cp " + std::to_string(evaluation * 100 / PawnUnit * (sideToMove==WHITE ? 1 : -1));
+            }
+
+            auto const movesToMate = evaluation > 0 ? 
+                std::to_string((MateValue - evaluation) / 2)
+                : std::to_string((evaluation + MateValue) / 2);
+            
+            if((sideToMove == WHITE && evaluation > 0) || (sideToMove == BLACK && evaluation < 0))
+            {
+                return " score mate " + movesToMate;
+            }     
+
+            return " score mate -" + movesToMate;
+        }
     } 
 
     Position::Position(std::string fen, std::function<void(std::string)> outputFunction)
@@ -614,7 +633,7 @@ namespace spezi
 
             infoString = "info depth "+std::to_string(result.maximumRegularDepth)
                             + " seldepth " + std::to_string(result.maximumReachedDepth)
-                            + " score cp " + std::to_string(result.evaluation * 100 / PawnUnit * (sideToMove==WHITE ? 1 : -1))
+                            + scoreString(result.evaluation, sideToMove)
                             + " nodes " + std::to_string(result.numberOfNodes)
                             + " nps " + std::to_string(static_cast<int>(result.numberOfNodes / result.seconds))
                             + " time " + std::to_string(static_cast<int>(result.seconds * 1000))

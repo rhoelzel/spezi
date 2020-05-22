@@ -156,7 +156,7 @@ namespace spezi
         int nullMoveCutoffs = 0;
 
         int pvEntries = 0;
-        int pvMisses = 0;
+        //int pvMisses = 0;
 
         // draft = maxDepth - depth =>
         // draft = 63...-64 for depth = 0...MAX_DEPTH + MAX_QUIESCENCE_DEPTH
