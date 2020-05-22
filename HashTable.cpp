@@ -22,7 +22,20 @@ namespace spezi
         char constexpr f[] = "abcdefgh";
         char constexpr r[] = "12345678";
         char constexpr x[] = "xxxxx-";
-        char constexpr pr[] = " NBRQ ";
+        char constexpr PR[] = " NBRQ ";
+        char constexpr pr[] = " nbrq ";
+    }
+
+    std::string HashEntry::getUciNotation() const
+    {    
+        auto const result = std::string{}
+            + f[value<Square, ORIGIN_SQUARE_MASK>() % SquaresPerRank]
+            + r[value<Square, ORIGIN_SQUARE_MASK>() / SquaresPerRank]
+            + f[value<Square, TARGET_SQUARE_MASK>() % SquaresPerRank]
+            + r[value<Square, TARGET_SQUARE_MASK>() / SquaresPerRank]
+            + pr[value<Piece, PROMOTED_PIECE_MASK>()];
+   
+        return result;
     }
 
     std::string HashEntry::getLongAlgebraicNotation() const
@@ -33,7 +46,7 @@ namespace spezi
             + x[value<Piece, CAPTURED_PIECE_MASK>()]
             + f[value<Square, TARGET_SQUARE_MASK>() % SquaresPerRank]
             + r[value<Square, TARGET_SQUARE_MASK>() / SquaresPerRank]
-            + pr[value<Piece, PROMOTED_PIECE_MASK>()];
+            + PR[value<Piece, PROMOTED_PIECE_MASK>()];
     
         if(result == "Ke1-g1 " || result == "Ke8-g8 ")
         {
@@ -72,8 +85,8 @@ namespace spezi
             + "e.p.: " + epBeforeStr + "->" + epAfterStr + "\n";
     }
 
-    HashTable::HashTable(size_t const size)
-    : entries(padToPowerOfTwo(size)), indexMask(entries.size() - 1)
+    HashTable::HashTable(size_t const sizeInMb)
+    : entries(padToPowerOfTwo(sizeInMb / sizeof(HashEntry))), indexMask(entries.size() - 1)
     {}
 
     HashEntry HashTable::get(ZKey const zKey) const

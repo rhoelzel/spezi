@@ -48,6 +48,12 @@ namespace spezi
 
         HashEntry() = default;
 
+        HashEntry(HashEntry const & other) = default;
+        HashEntry(HashEntry && other) = default;
+
+        HashEntry & operator=(HashEntry const & other) = default;
+        HashEntry & operator=(HashEntry && other) = default;
+
         HashEntry(HashEntryType const hashEntryType, ZKey const zKey, int const draft, MilliSquare const score)
         : zKey(zKey)
         {
@@ -122,6 +128,7 @@ namespace spezi
             return unsignedScore - (1 << 19);
         }
 
+        std::string getUciNotation() const;
         std::string getLongAlgebraicNotation() const;
         std::string getPrintOut() const;
 
@@ -134,7 +141,13 @@ namespace spezi
     class HashTable
     {
     public:
-        HashTable(size_t size);
+        HashTable(size_t sizeInMb);
+
+        HashTable(HashTable const & other) = default;
+        HashTable(HashTable && other) = default;
+
+        HashTable & operator=(HashTable const & other) = default;
+        HashTable & operator=(HashTable && other) = default;
 
         HashEntry get(ZKey zKey) const;
         bool insert(HashEntry entry);
@@ -143,7 +156,7 @@ namespace spezi
 
     private:
         std::vector<HashEntry> entries;    
-        size_t const indexMask;
+        size_t indexMask;
 
     };
 
@@ -152,6 +165,9 @@ namespace spezi
     public:
         // standard size: 256K buckets x 4 entries per bucket x 16 bytes per entry = 16MB 
         PrincipalVariationTable(size_t numberOfBuckets = 2 << 18, size_t bucketSize = 4);
+
+        PrincipalVariationTable(PrincipalVariationTable const & other) = default;
+        PrincipalVariationTable(PrincipalVariationTable && other) = default;
 
         HashEntry get(ZKey zKey) const;
         bool insert(HashEntry entry);
