@@ -412,11 +412,11 @@ namespace spezi
 
     std::string UCI::fen(std::vector<std::string>::const_iterator & firstFenSection)
     {
-        return *firstFenSection +
-               *(++firstFenSection) +
-               *(++firstFenSection) +
-               *(++firstFenSection) +
-               *(++firstFenSection) +
+        return *firstFenSection + " " +
+               *(++firstFenSection) + " " +
+               *(++firstFenSection) + " " +
+               *(++firstFenSection) + " " +
+               *(++firstFenSection) + " " +
                *(++firstFenSection);
     }
 }
