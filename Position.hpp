@@ -3,13 +3,15 @@
 #include "BitBoard.hpp"
 #include "Color.hpp"
 #include "HashTable.hpp"
-#include "History.hpp"
 #include "Mobility.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
 #include "ZKey.hpp"
 
 #include <array>
+#include <atomic>
+#include <chrono>
+#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -18,6 +20,19 @@ namespace spezi
 {    
     MilliSquare constexpr LOSS[NumberOfColors] = {-MateValue, MateValue};   
     MilliSquare constexpr DRAW = 0;
+
+    struct EvaluationParameters
+    {
+        int wtime = -1;
+        int btime = -1;
+        int winc = -1;
+        int binc = -1;
+        int movestogo = -1;
+        int depth = -1;
+        int nodes = -1;
+        int mate = -1;
+        int movetime = -1;
+    };
 
     struct EvaluationStatistics
     {
@@ -29,28 +44,38 @@ namespace spezi
         float seconds;
     };
 
+    constexpr char startingFen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
     class Position
     {
     public:
-        Position() = default;
-        Position(std::string fen);
-
+        Position() = delete;
+        Position(std::string fen, std::function<void(std::string)> outputFunction);
         Position(Position & other) = delete;
         Position(Position && other) = delete;
+
+        void setFen(std::string fen);
+        void makeMoves(std::vector<std::string>::const_iterator begin,
+                                std::vector<std::string>::const_iterator end);
+        void setHashTableSize(unsigned int megaByte);
+        void setMaxNumberOfNullMoves(unsigned int maxNumberOfNullMoves);
+        void setMaxQuiescenceDepth(unsigned int quiescenceDepth);
+        void clearHashTable();
+        void interrupt();
 
         std::string getZKey() const;
         std::string getBoardDisplay(int indent = 0) const;
         std::string getPrincipalVariation() const;
         std::string getPrincipalVariationII() const;
 
-        EvaluationStatistics evaluateRecursively(int depth, int qDepth = 8);
+        EvaluationStatistics evaluateRecursively(EvaluationParameters const & parameters);
         MilliSquare evaluateStatically() const;       
         MilliSquare pawnUnitsOnBoard() const; 
 
     private:
         void evaluate(int depth);
 
-        bool repetition(int depth);
+        bool repetition();
 
         bool isAttacked(Color attacking, Square square);
 
@@ -75,6 +100,14 @@ namespace spezi
             unsigned char castlingUpdate = 0xFu);
 
         BitBoard generateNonCaptureSquares(Piece piece, Square origin) const;
+
+        void storePrincipalVariation(HashEntry hashEntry, int depth);
+
+        void updateInterruptToken();
+
+        void sendInfo();
+
+        void makeMove(std::string const & uciNotation);
 
         BitBoard empty = A3|B3|C3|D3|E3|F3|G3|H3|A4|B4|C4|D4|E4|F4|G4|H4
                         |A5|B5|C5|D5|E5|F5|G5|H5|A6|B6|C6|D6|E6|F6|G6|H6;
@@ -104,12 +137,12 @@ namespace spezi
         ZKey zKey;
 
         int maxDepth = 0;
-        int maxQuiescenceDepth = 0;
+        int maxQuiescenceDepth = 8;
         int nullMoveDepth = 0;
 
         int nullMovesOnBranch = 0;
 
-        History history;
+        int maxConsecutiveNullMoves = 1;        
 
         int alphaRaises = 0;
         int betaCutoffs = 0;
@@ -130,8 +163,7 @@ namespace spezi
         // draft will fit into 7bit segment of hash table entry
         static int constexpr MAX_DEPTH = 63;                    
         static int constexpr MAX_QUIESCENCE_DEPTH = 64;         
-        static int constexpr MAX_CONSECUTIVE_NULL_MOVES = 1;        
-
+        
         static int constexpr MAX_DEPTH_ARRAY_SIZE = MAX_DEPTH + MAX_QUIESCENCE_DEPTH + 1;
         std::array<std::array<MilliSquare, MAX_DEPTH_ARRAY_SIZE>, NumberOfColors> alphaBetaAtDepth;
         std::array<int64_t, MAX_DEPTH_ARRAY_SIZE> numberOfNodesAtDepth;
@@ -139,10 +171,30 @@ namespace spezi
 
         static int constexpr PRINCIPAL_VARIATION_ARRAY_SIZE = (MAX_DEPTH_ARRAY_SIZE * (MAX_DEPTH_ARRAY_SIZE + 1)) / 2;
         std::array<HashEntry, PRINCIPAL_VARIATION_ARRAY_SIZE> principalVariation;
-        void storePrincipalVariation(HashEntry hashEntry, int depth);
 
         static int constexpr MB = 1 << 20;
-        HashTable transpositionTable {MB * 64};
-        PrincipalVariationTable principalVariationTable {MB * 16, 8};
+        HashTable transpositionTable {MB * 1};
+        PrincipalVariationTable principalVariationTable {1024, 8};
+
+        static int constexpr HISTORY_SIZE = 1024;
+        std::array<ZKey, HISTORY_SIZE> history;
+
+        EvaluationParameters evaluationParameters;
+
+        static std::chrono::milliseconds constexpr INTERRUPT_INTERVAL {10}; 
+      
+        enum InterruptState
+        {
+            Idle,
+            Busy,
+            Interrupted
+        };
+
+        std::atomic<InterruptState> interruptState {Idle};
+
+        static std::chrono::milliseconds constexpr INFO_INTERVAL {1000};
+        std::chrono::steady_clock::time_point lastInfoTimePoint;
+
+        std::function<void(std::string)> engineToGuiOutputFunction;
     };
 }

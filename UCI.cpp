@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace spezi
@@ -37,8 +39,15 @@ namespace spezi
     {
         while(uciState != Ended)
         {
-            processCommandFromGui(
-                readCommandFromGui());
+            try
+            {
+                auto guiCommand = readCommandFromGui();
+                processCommandFromGui(std::move(guiCommand));
+            }
+            catch(const std::exception& e)
+            {
+                writeCommandToGui(e.what());
+            }
         }
     }
    
@@ -47,6 +56,15 @@ namespace spezi
         std::string line;
         std::getline(std::cin, line);
         return line;
+    }
+
+    void UCI::writeCommandToGui(std::string line)
+    {
+        // engine to gui commands will not come from the main thread,
+        // => protect this to avoid garbling the output
+        static std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
+        std::cout<<line<<std::endl;
     }
 
     void UCI::processCommandFromGui(std::string commandLine)
@@ -71,16 +89,22 @@ namespace spezi
             }
         }
 
+        // process uci command first (total reset)
         if(args[numberOfToken] == "uci")
         {   
+            interrupt();
             uci();
+            return;
         }
-        
-        if(uciState != Ready)
+
+        // do not accept any command other than "uci" when not initialized
+        if(uciState == Initial)
         {
             return;
         }
-        
+
+        // process commands that do not need to interrupt calculations
+
         if(args[numberOfToken] == "debug" && args.size() >= numberOfToken + 2)
         {
             if(args[numberOfToken + 1] == "on")
@@ -91,12 +115,26 @@ namespace spezi
             {
                 debug(false);
             }
+            return;
         }
-        else if(args[numberOfToken] == "isready")
+
+        if(args[numberOfToken] == "isready")
         {
             isready();
+            return;
         }
-        else if(args[numberOfToken] == "setoption" && args.size() >= numberOfToken + 5)
+       
+        // any other command will have to interrupt running calculations, so do it once here
+
+        interrupt();
+
+        // do not accept any commands when not ready (although this should not happen at this point)
+        if(uciState != Ready)
+        {
+            return;
+        }
+        
+        if(args[numberOfToken] == "setoption" && args.size() >= numberOfToken + 5)
         {
             if(args[numberOfToken + 1] == "name"
                 &&args[numberOfToken + 3] == "value")
@@ -110,93 +148,95 @@ namespace spezi
         }
         else if(args[numberOfToken] == "position" && args.size() >= numberOfToken + 2)
         {
-            position(Started);
             auto iter = args.cbegin() + numberOfToken + 1;
-            bool success = false;
+
+            std::string positionAsFen;
+
             if(*iter == "startpos")
             {
-                success = startpos();
+                positionAsFen = startingFen;                
             }            
             else if(*iter == "fen" && args.size() >= numberOfToken + 8)
             {
-                success = fen(++iter);
+                positionAsFen = fen(++iter);
             }
-
-            if(success)
+            else
             {
-                if(*iter == "moves" && args.size() >= numberOfToken + 3)
-                {
-                    success = moves(++iter, args.cend());
-                }
+                throw std::runtime_error("error parsing position command: 'startpos' or 'fen' missing");
             }
 
-            position(success ? Finished : Aborted);
+            if(++iter != args.end() && *iter == "moves")
+            {
+                position(std::move(positionAsFen), ++iter, args.cend());
+            }
+            else
+            {
+                position(std::move(positionAsFen), args.cend(), args.cend());
+            }
         }
         else if(args[numberOfToken] == "go" && args.size() >= numberOfToken + 2)
         {
-            go(Started);
+            goParameters = EvaluationParameters{};
             auto iter = args.cbegin() + numberOfToken + 1; 
             while(iter!=args.cend())
             {
-                bool success = false;
                 if(*iter == "searchmoves")
                 {
-                    success = searchmoves(++iter, --args.cend());
-                }
-                else if(*iter == "ponder")
+                    searchmoves(++iter, args.cend());
+                }                        
+                if(*iter == "ponder")
                 {
-                    success = ponder();
+                    ponder();
                 }
                 else if(*iter == "wtime" && ++iter != args.cend())
                 {
-                    success = wtime(std::stoi(*iter));
+                    wtime(std::stoul(*iter));
                 }
                 else if(*iter == "btime" && ++iter != args.cend())
                 {
-                    success = btime(std::stoi(*iter));
+                    btime(std::stoul(*iter));
                 }
                 else if(*iter == "winc" && ++iter != args.cend())
                 {
-                    success = winc(std::stoi(*iter));
+                    winc(std::stoul(*iter));
                 }
                 else if(*iter == "binc" && ++iter != args.cend())
                 {
-                    success = btime(std::stoi(*iter));
+                    binc(std::stoul(*iter));
                 }
                 else if(*iter == "movestogo" && ++iter != args.cend())
                 {
-                    success = movestogo(std::stoi(*iter));
+                    movestogo(std::stoul(*iter));
                 }
                 else if(*iter == "depth" && ++iter != args.cend())
                 {
-                    success = depth(std::stoi(*iter));
+                    depth(std::stoul(*iter));
                 }
                 else if(*iter == "nodes" && ++iter != args.cend())
                 {
-                    success = nodes(std::stoi(*iter));
+                    nodes(std::stoul(*iter));
                 }
                 else if(*iter == "mate" && ++iter != args.cend())
                 {
-                    success = mate(std::stoi(*iter));
+                    mate(std::stoul(*iter));
                 }
                 else if(*iter == "movetime" && ++iter != args.cend())
                 {
-                    success = movetime(std::stoi(*iter));
+                    movetime(std::stoul(*iter));
                 }
                 else if(*iter == "infinite")
                 {
-                    success = infinite();
+                    infinite();
                 }
-                
-                if(!success)
+                else
                 {
-                    go(Aborted);
-                    return;
+                    throw std::runtime_error("could not process go command");
                 }
+    
                 ++iter;
             };  
 
-            go(Finished);
+            go();
         }
         else if(args[numberOfToken] == "stop")
         {
@@ -214,18 +254,16 @@ namespace spezi
 
     void UCI::uci()
     {
-        interrupt();
+        p.clearHashTable();
 
-        if(uciState == Initial)
-        {
-            uciState = Ready;
-        }
-        
         writeCommandToGui("id name Spezi");
         writeCommandToGui("id name Roberto");
         writeCommandToGui("option name Hash type spin default 1 min 1 max 4096");
-        writeCommandToGui("option name #Null type spin default 2 min 0 max 2");
+        writeCommandToGui("option name NullMoves type spin default 2 min 0 max 2");
+        writeCommandToGui("option name QDepth type spin default 8 min 0 max 64");
         writeCommandToGui("uciok");
+    
+        uciState = Ready;
     }
 
     void UCI::debug(bool on)
@@ -235,62 +273,61 @@ namespace spezi
     
     void UCI::isready()
     {
-        if(uciState != Initial)
-        {
-            writeCommandToGui("readyok");
-        }
+        writeCommandToGui("readyok");
     }
     
     void UCI::setoption(std::string name, std::string value)
     {
         if(name == "Hash")
         {
+            p.setHashTableSize(std::stoul(value));
         }
-        else if(name == "#Null")
+        else if(name == "NullMoves")
         {
+            p.setMaxNumberOfNullMoves(std::stoul(value));
+        }
+        else if(name == "QDepth")
+        {
+            p.setMaxQuiescenceDepth(std::stoul(value));
         }
     }
     
     void UCI::ucinewgame()
     {
+        p.clearHashTable();
+    }
+    
+    void UCI::position(std::string fen,
+                            std::vector<std::string>::const_iterator movesBegin,
+                            std::vector<std::string>::const_iterator movesEnd)
+    {
+        p.setFen(std::move(fen));
+        p.makeMoves(movesBegin, movesEnd);
+    }
+    
+    void UCI::go()
+    {
+        uciState = Busy;
 
-    }
-    
-    void UCI::position(CommandState state)
-    {
-        if(pState != Started)
+        auto evaluateAndCatchExceptions = [this](EvaluationParameters const & params)
         {
-            pState = Started;
-        }
-        else if(state == Finished)
-        {
-            pState = Finished;
-        }
-        else
-        {
-            pState = Aborted;
-        }
-    }
-    
-    void UCI::go(CommandState state)
-    {
-        if(gState != Started)
-        {
-            gState = Started;
-        }
-        else if(state == Finished)
-        {
-            gState = Finished;
-        }
-        else
-        {
-            gState = Aborted;
-        }
+            try
+            {
+                p.evaluateRecursively(params); 
+            }
+            catch(std::exception const & e)
+            {
+                writeCommandToGui(e.what());
+            }
+        };         
+
+        auto evaluationThread = std::thread(evaluateAndCatchExceptions, goParameters);
+        evaluationThread.detach();
     }
     
     void UCI::stop()
     {
-
+        /* nothing to do here, interrupt is already handled */
     }
     
     void UCI::ponderhit()
@@ -303,15 +340,83 @@ namespace spezi
         uciState = Ended; 
     }
 
+    void UCI::searchmoves(std::vector<std::string>::const_iterator & /*begin*/,
+                                std::vector<std::string>::const_iterator /*end*/)
+    {
+
+    }
+
+    void UCI::ponder()
+    {
+
+    }
+
+    void UCI::wtime(int const milliseconds)
+    {
+        goParameters.wtime = milliseconds;
+    }
+
+    void UCI::btime(int const milliseconds)
+    {
+        goParameters.btime = milliseconds;
+    }
+
+    void UCI::winc(int const milliseconds)
+    {   
+        goParameters.wtime = milliseconds;
+    }
+
+    void UCI::binc(int const milliseconds)
+    {
+        goParameters.binc = milliseconds;
+    }
+
+    void UCI::movestogo(int const moves)
+    {
+        goParameters.movestogo = moves;
+    }
+
+    void UCI::depth(int const plies)
+    {
+        goParameters.depth = plies;
+    }
+
+    void UCI::nodes(int const nodes)
+    {
+        goParameters.nodes = nodes;
+    }
+
+    void UCI::mate(int const moves)
+    {
+        goParameters.mate = moves;
+    }
+
+    void UCI::movetime(int const milliseconds)
+    {
+        goParameters.movetime = milliseconds;
+    }
+
+    void UCI::infinite()
+    {
+        /* nothing to do here, infinite search is the default */
+    }
+
     void UCI::interrupt()
     {
-        if(uciState == Initial 
-            || uciState == Ready
-            || uciState == Ended)
+        if(uciState == Busy) 
         {
-            return;
+            p.interrupt();
+            uciState = Ready;
         }
+    }
 
-        uciState = Interrupted;
+    std::string UCI::fen(std::vector<std::string>::const_iterator & firstFenSection)
+    {
+        return *firstFenSection +
+               *(++firstFenSection) +
+               *(++firstFenSection) +
+               *(++firstFenSection) +
+               *(++firstFenSection) +
+               *(++firstFenSection);
     }
 }

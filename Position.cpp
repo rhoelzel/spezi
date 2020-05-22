@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
-#include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <thread>
 
 //#define PERFT
 
@@ -13,6 +13,13 @@ namespace spezi
 {
     namespace
     {
+        // returns the position in the history table where the move 
+        // sideToMove is about to make should be stored
+        auto constexpr historyIndex(int const fullMoves, Color const sideToMove)
+        {
+            return (fullMoves - 1) * 2 + sideToMove;
+        }
+
         auto constexpr NO_PIECE = NumberOfPieceTypes * 2;
         auto constexpr PIECE_ERROR = NumberOfPieceTypes * 2 + 1;
         
@@ -135,7 +142,14 @@ namespace spezi
         }
     } 
 
-    Position::Position(std::string fen)
+    Position::Position(std::string fen, std::function<void(std::string)> outputFunction)
+     :  lastInfoTimePoint(std::chrono::steady_clock::now()),
+        engineToGuiOutputFunction(std::move(outputFunction))
+    {
+        setFen(std::move(fen));   
+    }
+
+    void Position::setFen(std::string fen)
     {
         std::istringstream sectionStream(fen);
         std::array<std::string, 6> sections;
@@ -202,14 +216,14 @@ namespace spezi
             throw std::runtime_error("Invalid side-to-move character: " + sections[1]);
         }
 
-        std::string allowedCastling[] =
+        std::string const allowedCastling[] =
         { 
             "-", "K", "Q", "k", "q", "KQ", "Kk", "Kq", "Qk", "Qq", "kq",
             "KQk", "KQq", "Kkq", "Qkq", "KQkq"
         }; 
 
         bool castlingError = true;
-        for(auto const s : allowedCastling)
+        for(auto const & s : allowedCastling)
         {
             if(s == sections[2])
             {
@@ -270,11 +284,71 @@ namespace spezi
             throw std::runtime_error("Illegal number of moves: " + sections[5]);
         }
 
+        auto const historySize = historyIndex(fullMoves, sideToMove);
+
+        for(auto index = 0; index != historySize; ++index)
+        {
+            // empty history up until the played number of moves
+            history[index] = ZKey{};
+        }
+
         zKey = sideToMove == WHITE ? 0 : BlackToMoveKey;
         zKey ^= CastlingKeys[castlingRights];
         zKey ^= zKeyFromPieceBoard(pieceBoard(empty, allPieces, individualPieces));
+    }
 
-        history.resize(1024);
+    void Position::makeMoves(std::vector<std::string>::const_iterator begin, std::vector<std::string>::const_iterator const end)
+    {
+        while(begin != end)
+        {
+            makeMove(*begin);
+            ++begin;
+        }
+    }
+
+    void Position::setHashTableSize(unsigned int const megaByte)
+    {
+        if(megaByte == 0)
+        {
+            throw std::runtime_error("hash size 0 is not allowed");
+        }
+        transpositionTable = HashTable{MB * megaByte};
+    }
+    
+    void Position::setMaxNumberOfNullMoves(unsigned int const maxNumberOfConsecutiveNullMoves)
+    {
+        if(maxNumberOfConsecutiveNullMoves > 2)
+        {
+            throw std::runtime_error("cannot have more than two consecutive null moves");
+        }
+        maxConsecutiveNullMoves = maxNumberOfConsecutiveNullMoves;
+    }
+
+    void Position::setMaxQuiescenceDepth(unsigned int quiescenceDepth)
+    {
+        if(quiescenceDepth > MAX_QUIESCENCE_DEPTH)
+        {
+            throw std::runtime_error("cannot have quiescence depth > 64");
+        }
+        maxQuiescenceDepth = quiescenceDepth;
+    }
+
+    void Position::clearHashTable()
+    {
+        transpositionTable.clear();
+    }
+
+    void Position::interrupt()
+    {
+        if(interruptState == Busy)
+        {
+            interruptState = Interrupted;
+        }
+
+        while(interruptState!=Idle)
+        {
+            std::this_thread::sleep_for(INTERRUPT_INTERVAL);
+        };
     }
 
     std::string Position::getZKey() const
@@ -334,15 +408,20 @@ namespace spezi
             auto const score = entry.value<MilliSquare, HashEntry::SCORE_MASK>();
             auto const draft = entry.value<int, HashEntry::DRAFT_MASK>();
 
-            if(/*score / MateValue == 1*/
-                (depth == MAX_DEPTH_ARRAY_SIZE )/*|| (score / MaxExpectedMobility == 0 /*&& draft <= 0*/)
+            if((score / MateValue == 1) ||
+                (depth == MAX_DEPTH_ARRAY_SIZE) || (score / MaxExpectedMobility == 0 && draft <= 0))
             {
                 break;
             }
  
-            result += entry.getLongAlgebraicNotation() + "at depth " + 
-                std::to_string(draft) + " with score " + std::to_string(score) + "\n";
+            auto const move = entry.getUciNotation();
+            if(move == "a1a1 ")
+            {
+                // needs work :)
+                break;
+            }
 
+            result += entry.getUciNotation() + " "; 
             ++depth;
         }
         return result;
@@ -446,22 +525,22 @@ namespace spezi
         return result;
     }
 
-    EvaluationStatistics Position::evaluateRecursively(int const depth, int const qDepth)
+    EvaluationStatistics Position::evaluateRecursively(EvaluationParameters const & parameters)
     {
-        if(depth > MAX_DEPTH)
+        if(parameters.depth > MAX_DEPTH)
         {
-            throw std::runtime_error("depth " + std::to_string(depth) + " exceeds maximum depth");
+            throw std::runtime_error("depth " + std::to_string(parameters.depth) + " exceeds maximum depth");
         }
 
-        if(qDepth > MAX_QUIESCENCE_DEPTH)
-        {
-            throw std::runtime_error("qDepth " + std::to_string(depth) + " exceeds maximum quiescence depth");
-        }
+        evaluationParameters = parameters;
 
-        maxQuiescenceDepth = qDepth;
+        interruptState = Busy;
 
         EvaluationStatistics result;
-        for(auto currentMaxDepth = 0; currentMaxDepth <= depth; currentMaxDepth +=2)
+        std::string bestMovePonderString;
+        std::string infoString;
+
+        for(auto currentMaxDepth = 1; currentMaxDepth <= 7; currentMaxDepth +=1)
         {
             alphaRaises = 0;
             betaCutoffs = 0;
@@ -485,15 +564,24 @@ namespace spezi
             alphaBetaAtDepth[BLACK][0] = LOSS[BLACK];   // initial beta
             numberOfNodesAtDepth = {};
 
+            // simulate starting from an earlier position to accomodate color switching in evaluate()
             sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+            fullMoves -= sideToMove;
             zKey^= BlackToMoveKey;
             evaluate(0);
-            sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+            // revert simulation of earlier position
             zKey^= BlackToMoveKey;
+            fullMoves += sideToMove;
+            sideToMove = static_cast<Color>(sideToMove ^ BLACK);
 
             int64_t numberOfNodes = 0;
             int64_t numberOfQuiescenceNodes = 0;
             auto maximumReachedDepth = 0;
+
+            if(interruptState == Interrupted)
+            {
+                break;
+            }
 
             for(auto d = 0; d < MAX_DEPTH + MAX_QUIESCENCE_DEPTH; ++d)
             {
@@ -524,11 +612,28 @@ namespace spezi
                 static_cast<float>(duration.count())/1e6f
             };
 
+            infoString = "info depth "+std::to_string(result.maximumRegularDepth)
+                            + " seldepth " + std::to_string(result.maximumReachedDepth)
+                            + " score cp " + std::to_string(result.evaluation * 100 / PawnUnit * (sideToMove==WHITE ? 1 : -1))
+                            + " nodes " + std::to_string(result.numberOfNodes)
+                            + " nps " + std::to_string(static_cast<int>(result.numberOfNodes / result.seconds))
+                            + " time " + std::to_string(static_cast<int>(result.seconds * 1000))
+                            + " pv " + getPrincipalVariationII();
+            engineToGuiOutputFunction(infoString);                
+            bestMovePonderString = "bestmove " + principalVariation[0].getUciNotation() + " ponder " + principalVariation[1].getUciNotation();
+
             if(result.evaluation > MaxExpectedMobility || result.evaluation < -MaxExpectedMobility)
             {
                 break;
             }
         }
+
+        // send last info string for full search again,
+        // send bestmove ponder string   
+        engineToGuiOutputFunction(infoString);
+        engineToGuiOutputFunction(bestMovePonderString);
+
+       /* 
         std::cout<<"alpha raises:       "<<alphaRaises<<std::endl;
         std::cout<<"beta cutoffs:       "<<betaCutoffs<<std::endl;
         std::cout<<"cut entries:        "<<cutEntries<<std::endl;
@@ -540,24 +645,33 @@ namespace spezi
         std::cout<<"hash cutoffs:       "<<hashCutoffs<<std::endl;
         std::cout<<"null move cutoffs:  "<<nullMoveCutoffs<<std::endl;
         std::cout<<"pv entries:         "<<pvEntries<<std::endl;
-        std::cout<<"pv misses:          "<<pvMisses<<std::endl;
+        std::cout<<"pv misses:          "<<pvMisses<<std::endl;*/
+
+        interruptState = Idle;
+
         return result;
     }   
 
     void Position::evaluate(int const depth)
-    {   
+    {  
+        if(interruptState == Interrupted)
+        {
+            return;
+        } 
+
         auto const nodesAtEntry = numberOfNodesAtDepth[depth + 1];   
         ++numberOfNodesAtDepth[depth];
 
         auto const quiescence = depth >= maxDepth;
         auto const other = sideToMove;
 
+        fullMoves += sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
         zKey ^= BlackToMoveKey;
 
 #ifndef PERFT
         // make early exit checks (repetition, transposition, legality) from least to most expensive
-        if(repetition(depth))
+        if(repetition())
         {
             alphaBetaAtDepth[sideToMove][depth] = DRAW;
             goto exit;
@@ -571,7 +685,7 @@ namespace spezi
             alphaBetaAtDepth[BLACK][depth] = absInc(alphaBetaAtDepth[BLACK][depth-1]);
         }
 
-        history[depth] = HistoryNode{zKey};
+        history[historyIndex(fullMoves, sideToMove)] = zKey;
 
         hashEntryAtDepth[depth] = {}; 
         if(!evaluateHashMove(depth))
@@ -666,7 +780,7 @@ namespace spezi
         case PV_NODE:
             transpositionTable.insert(hashEntryAtDepth[depth]);
             ++exactEntries;
-            if(!quiescence)
+         /*   if(!quiescence)
             {
                 if(principalVariationTable.insert(hashEntryAtDepth[depth]))
                 {
@@ -676,7 +790,7 @@ namespace spezi
                 {
                     ++pvMisses;
                 }
-            }
+            }*/
             if(!nullMovesOnBranch)
             {
                 storePrincipalVariation(hashEntryAtDepth[depth], depth);
@@ -685,19 +799,23 @@ namespace spezi
     }
 
     exit:
-        sideToMove = other;
         zKey ^= BlackToMoveKey;
+        sideToMove = other;
+        fullMoves -= sideToMove;
+
+
     }
 
-    bool Position::repetition(int const depth)
+    bool Position::repetition()
     {
         auto constexpr minimalFullMovesToLookBack = 2;
+        auto const thisMoveIndex = historyIndex(fullMoves, sideToMove);
         auto maximalFullMovesToLookBack = halfMoves / 2;
         for(auto fullMovesToLookBack = minimalFullMovesToLookBack; 
             fullMovesToLookBack <= maximalFullMovesToLookBack;
             ++fullMovesToLookBack)
         {
-            if(history[depth - fullMovesToLookBack * 2].zKey == zKey)
+            if(history[thisMoveIndex - fullMovesToLookBack * 2] == zKey)
             {
                 return true;
             }
@@ -781,6 +899,9 @@ namespace spezi
                     // exact score => record score and return immediately  
                     ++exactHashes;
                     alphaBetaAtDepth[sideToMove][depth] = score;
+                    // important: because of the early exit in evaluate(...), 
+                    // pv table is not updated there for exact hits in the hash table 
+                    storePrincipalVariation(entry, depth);
                     return false;
                 }
                 else if(entry.value<HashEntryType, HashEntry::TYPE_MASK>() == CUT_NODE)
@@ -996,7 +1117,7 @@ namespace spezi
 #endif
         auto constexpr R = 3;   // standard depth decrease R = 3 for null move heuristic
         
-        if(nullMoveDepth == MAX_CONSECUTIVE_NULL_MOVES)
+        if(nullMoveDepth == maxConsecutiveNullMoves)
         {
             return true;
         }            
@@ -1522,5 +1643,145 @@ namespace spezi
             firstMovePointer + lengthOfPrincipalVariation,
             firstMovePointer + lengthOfPrincipalVariation * 2 - 1, 
             firstMovePointer + 1);            
+    }
+
+    void Position::updateInterruptToken()
+    {
+
+    }
+
+    void Position::sendInfo()
+    {
+        auto const now = std::chrono::steady_clock::now();
+        auto const timeSinceLastInfoSent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfoTimePoint);
+
+        if(timeSinceLastInfoSent < INFO_INTERVAL)
+        {
+            return;
+        }
+    }
+
+    void Position::makeMove(std::string const & uciNotation)
+    {
+        auto const origin = uciNotation[0] - 'a' + (uciNotation[1] - '1') * SquaresPerRank;
+        auto const target = uciNotation[2] - 'a' + (uciNotation[3] - '1') * SquaresPerRank; 
+
+        auto const from = A1 << origin;
+        auto const to = A1 << target;
+
+        auto const movedPiece = individualPieces[PAWN] & from ? PAWN
+                                : individualPieces[KNIGHT] & from ? KNIGHT
+                                : individualPieces[BISHOP] & from ? BISHOP
+                                : individualPieces[ROOK] & from ? ROOK
+                                : individualPieces[QUEEN] & from ? QUEEN
+                                : KING;
+        auto const capturedPiece = (individualPieces[PAWN] & to) || (enPassant && target == ffs(enPassant))? PAWN
+                                : individualPieces[KNIGHT] & to ? KNIGHT
+                                : individualPieces[BISHOP] & to ? BISHOP
+                                : individualPieces[ROOK] & to ? ROOK
+                                : individualPieces[QUEEN] & to ? QUEEN
+                                : KING;
+        auto const promotedPiece = uciNotation.size() == 4 ? KING
+                                : uciNotation[4] == 'n' ? KNIGHT
+                                : uciNotation[4] == 'b' ? BISHOP
+                                : uciNotation[4] == 'r' ? ROOK
+                                : uciNotation[4] == 'q' ? QUEEN
+                                : KING;
+
+        zKey ^= PieceKeys[sideToMove][movedPiece][origin];
+        allPieces[sideToMove] ^= from;
+        allPieces[sideToMove] ^= to;
+        individualPieces[movedPiece] ^=from;
+        empty ^= from;
+
+        zKey ^= PieceKeys[sideToMove]
+            [(promotedPiece == KING) * movedPiece + (promotedPiece!=KING) * promotedPiece][target];
+        individualPieces[(promotedPiece == KING) * movedPiece + (promotedPiece!=KING) * promotedPiece] ^= to;
+
+        if(capturedPiece != KING)
+        {
+            halfMoves = 0;
+
+            if(enPassant && target == ffs(enPassant))
+            {
+                auto const pawn = target + ((sideToMove << 1) - 1) * SquaresPerRank;
+                zKey ^= PieceKeys[(sideToMove + 1) % 2][capturedPiece][pawn];
+                allPieces[(sideToMove + 1) % 2] ^= (A1 << pawn); 
+                individualPieces[capturedPiece] ^= (A1 << pawn);
+                empty ^= to;
+                empty ^= (A1 << pawn);
+            }
+            else
+            {
+                zKey ^= PieceKeys[(sideToMove + 1) % 2][capturedPiece][target];
+                allPieces[(sideToMove + 1) % 2] ^= to;
+                individualPieces[capturedPiece] ^= to; 
+            }
+        }
+        else
+        {
+            empty ^= to;
+            halfMoves += movedPiece == PAWN ? -halfMoves : 1; 
+
+            if(movedPiece == KING)
+            {
+                if(origin == e1)
+                {
+                    if(target == g1)
+                    {
+                        auto const rookSquares = F1 | H1;
+                        allPieces[WHITE] ^= rookSquares;
+                        individualPieces[ROOK] ^= rookSquares;
+                        empty ^= rookSquares;
+                        zKey ^= PieceKeys[WHITE][ROOK][f1];
+                        zKey ^= PieceKeys[WHITE][ROOK][h1];
+                    }
+                    else if (target == c1)
+                    {
+                        auto const rookSquares = A1 | D1;
+                        allPieces[WHITE] ^= rookSquares;
+                        individualPieces[ROOK] ^= rookSquares;
+                        empty ^= rookSquares;
+                        zKey ^= PieceKeys[WHITE][ROOK][a1];
+                        zKey ^= PieceKeys[WHITE][ROOK][d1];
+                    }
+                }
+                else if(origin == e8)
+                {
+                    if(target == g8)
+                    {
+                        auto const rookSquares = F8 | H8;
+                        allPieces[BLACK] ^= rookSquares;
+                        individualPieces[ROOK] ^= rookSquares;
+                        empty ^= rookSquares;
+                        zKey ^= PieceKeys[BLACK][ROOK][f8];
+                        zKey ^= PieceKeys[BLACK][ROOK][h8];
+                    }
+                    else if(target == c8)
+                    {
+                        auto const rookSquares = A8 | D8;
+                        allPieces[BLACK] ^= rookSquares;
+                        individualPieces[ROOK] ^= rookSquares;
+                        empty ^= rookSquares;
+                        zKey ^= PieceKeys[BLACK][ROOK][A8];
+                        zKey ^= PieceKeys[BLACK][ROOK][D8];
+                    }
+                }
+            }
+        }
+
+        zKey ^= CastlingKeys[castlingRights];
+        castlingRights &= castlingCaptureUpdateFlags(from, to);
+        zKey ^= CastlingKeys[castlingRights];
+        
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
+      
+        enPassant = (movedPiece == PAWN) ? (A1 << ((ffs(from) + ffs(to)) >> 1)) & Files[origin] : EMPTY;
+
+        zKey ^= enPassant ? EnPassantKeys[ffs(enPassant) % SquaresPerRank] : ZKey {0};
+
+        fullMoves += sideToMove;
+        sideToMove = static_cast<Color>(sideToMove ^ BLACK);
+        zKey ^= BlackToMoveKey;
     }
 }
