@@ -26,8 +26,8 @@ namespace spezi
     {
         int wtime = -1;
         int btime = -1;
-        int winc = -1;
-        int binc = -1;
+        int winc = 0;
+        int binc = 0;
         int movestogo = -1;
         int depth = -1;
         int nodes = -1;
