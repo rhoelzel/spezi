@@ -713,6 +713,8 @@ namespace spezi
         if(repetition())
         {
             alphaBetaAtDepth[sideToMove][depth] = DRAW;
+            hashEntryAtDepth[depth] = HashEntry(PV_NODE, zKey, maxDepth - depth, DRAW);
+            storePrincipalVariation(hashEntryAtDepth[depth], depth);
             goto exit;
         }
 
