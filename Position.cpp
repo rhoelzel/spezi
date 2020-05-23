@@ -162,7 +162,7 @@ namespace spezi
     } 
 
     Position::Position(std::string fen, std::function<void(std::string)> outputFunction)
-     :  lastInfoTimePoint(std::chrono::steady_clock::now()),
+     :  lastInfoSentTimePoint(std::chrono::steady_clock::now()),
         engineToGuiOutputFunction(std::move(outputFunction))
     {
         setFen(std::move(fen));   
@@ -552,6 +552,14 @@ namespace spezi
         }
 
         evaluationParameters = parameters;
+        if(parameters.depth == -1)
+        {
+            evaluationParameters.depth = MAX_DEPTH;
+        }
+
+        evaluationTargetTimePoint = getTargetTime( 
+            sideToMove == WHITE ? MilliSeconds{evaluationParameters.wtime} : MilliSeconds{evaluationParameters.btime}, 
+            fullMoves - 1);
 
         interruptState = Busy;
 
@@ -559,7 +567,7 @@ namespace spezi
         std::string bestMovePonderString;
         std::string infoString;
 
-        for(auto currentMaxDepth = 1; currentMaxDepth <= 7; currentMaxDepth +=1)
+        for(auto currentMaxDepth = 1; currentMaxDepth <= evaluationParameters.depth; currentMaxDepth +=1)
         {
             alphaRaises = 0;
             betaCutoffs = 0;
@@ -619,7 +627,7 @@ namespace spezi
             }
 
             auto const stop = std::chrono::steady_clock::now();
-            auto const duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
+            auto const duration = std::chrono::duration_cast<MilliSeconds>(stop - start); 
 
             result = 
             {
@@ -628,7 +636,7 @@ namespace spezi
                 maximumReachedDepth,
                 numberOfNodes,
                 numberOfQuiescenceNodes,
-                static_cast<float>(duration.count())/1e6f
+                static_cast<float>(duration.count())/1e3f
             };
 
             infoString = "info depth "+std::to_string(result.maximumRegularDepth)
@@ -645,6 +653,16 @@ namespace spezi
             {
                 break;
             }
+
+            if(!enoughTimeForDeeperSearch(evaluationTargetTimePoint, duration))
+            {
+                break;
+            }
+            else
+            {
+                std::cout<<"goon"<<std::endl;
+            }
+            
         }
 
         // send last info string for full search again,
@@ -673,10 +691,10 @@ namespace spezi
 
     void Position::evaluate(int const depth)
     {  
-        if(interruptState == Interrupted)
+        if(checkAbortingConditions())
         {
             return;
-        } 
+        }
 
         auto const nodesAtEntry = numberOfNodesAtDepth[depth + 1];   
         ++numberOfNodesAtDepth[depth];
@@ -1664,15 +1682,26 @@ namespace spezi
             firstMovePointer + 1);            
     }
 
-    void Position::updateInterruptToken()
+    bool Position::checkAbortingConditions()
     {
+        if(interruptState == Interrupted)
+        {
+            return true;
+        } 
 
+        auto const now = std::chrono::steady_clock::now();
+        if(now > evaluationTargetTimePoint)
+        {
+            interruptState = Interrupted;
+            return true;
+        }
+        return false;
     }
-
+   
     void Position::sendInfo()
     {
         auto const now = std::chrono::steady_clock::now();
-        auto const timeSinceLastInfoSent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfoTimePoint);
+        auto const timeSinceLastInfoSent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInfoSentTimePoint);
 
         if(timeSinceLastInfoSent < INFO_INTERVAL)
         {

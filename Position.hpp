@@ -6,6 +6,7 @@
 #include "Mobility.hpp"
 #include "Piece.hpp"
 #include "Square.hpp"
+#include "TimeManagement.hpp"
 #include "ZKey.hpp"
 
 #include <array>
@@ -103,7 +104,7 @@ namespace spezi
 
         void storePrincipalVariation(HashEntry hashEntry, int depth);
 
-        void updateInterruptToken();
+        bool checkAbortingConditions();
 
         void sendInfo();
 
@@ -181,7 +182,9 @@ namespace spezi
 
         EvaluationParameters evaluationParameters;
 
-        static std::chrono::milliseconds constexpr INTERRUPT_INTERVAL {10}; 
+        TimePoint evaluationTargetTimePoint;
+
+        static MilliSeconds constexpr INTERRUPT_INTERVAL {10}; 
       
         enum InterruptState
         {
@@ -192,8 +195,8 @@ namespace spezi
 
         std::atomic<InterruptState> interruptState {Idle};
 
-        static std::chrono::milliseconds constexpr INFO_INTERVAL {1000};
-        std::chrono::steady_clock::time_point lastInfoTimePoint;
+        static MilliSeconds constexpr INFO_INTERVAL {1000};
+        TimePoint lastInfoSentTimePoint;
 
         std::function<void(std::string)> engineToGuiOutputFunction;
     };
