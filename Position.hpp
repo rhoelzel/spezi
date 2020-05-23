@@ -61,6 +61,7 @@ namespace spezi
         void setHashTableSize(unsigned int megaByte);
         void setMaxNumberOfNullMoves(unsigned int maxNumberOfNullMoves);
         void setMaxQuiescenceDepth(unsigned int quiescenceDepth);
+        void setSuppressPv(bool suppressPv);
         void clearHashTable();
         void interrupt();
 
@@ -172,6 +173,7 @@ namespace spezi
 
         static int constexpr PRINCIPAL_VARIATION_ARRAY_SIZE = (MAX_DEPTH_ARRAY_SIZE * (MAX_DEPTH_ARRAY_SIZE + 1)) / 2;
         std::array<HashEntry, PRINCIPAL_VARIATION_ARRAY_SIZE> principalVariation;
+        bool suppressFaultyPv {false};
 
         static int constexpr MB = 1 << 20;
         HashTable transpositionTable {MB * 1};

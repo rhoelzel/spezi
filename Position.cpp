@@ -352,6 +352,11 @@ namespace spezi
         maxQuiescenceDepth = quiescenceDepth;
     }
 
+    void Position::setSuppressPv(bool const suppressPv)
+    {
+        suppressFaultyPv = suppressPv; 
+    }
+
     void Position::clearHashTable()
     {
         transpositionTable.clear();
@@ -646,7 +651,7 @@ namespace spezi
                             + " nodes " + std::to_string(result.numberOfNodes)
                             + " nps " + std::to_string(static_cast<int>(result.numberOfNodes / result.seconds))
                             + " time " + std::to_string(static_cast<int>(result.seconds * 1000))
-                            + " pv " + getPrincipalVariationII();
+                            + (suppressFaultyPv ? "" : " pv " + getPrincipalVariationII());
             engineToGuiOutputFunction(infoString);                
             bestMovePonderString = "bestmove " + principalVariation[0].getUciNotation() + " ponder " + principalVariation[1].getUciNotation();
 

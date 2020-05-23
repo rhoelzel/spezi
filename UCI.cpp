@@ -261,6 +261,8 @@ namespace spezi
         writeCommandToGui("option name Hash type spin default 1 min 1 max 4096");
         writeCommandToGui("option name NullMoves type spin default 2 min 0 max 2");
         writeCommandToGui("option name QDepth type spin default 8 min 0 max 64");
+        // Suppress faulty PV 
+        writeCommandToGui("option name SuppressPV type check default false");
         writeCommandToGui("uciok");
     
         uciState = Ready;
@@ -289,6 +291,10 @@ namespace spezi
         else if(name == "QDepth")
         {
             p.setMaxQuiescenceDepth(std::stoul(value));
+        }
+        else if(name == "SuppressPV")
+        {
+            p.setSuppressPv(value != "false");
         }
     }
     
