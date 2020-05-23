@@ -559,6 +559,7 @@ namespace spezi
 
         evaluationTargetTimePoint = getTargetTime( 
             sideToMove == WHITE ? MilliSeconds{evaluationParameters.wtime} : MilliSeconds{evaluationParameters.btime}, 
+            sideToMove == WHITE ? MilliSeconds{evaluationParameters.winc} : MilliSeconds{evaluationParameters.binc},
             fullMoves - 1);
 
         interruptState = Busy;
