@@ -659,11 +659,6 @@ namespace spezi
             {
                 break;
             }
-            else
-            {
-                std::cout<<"goon"<<std::endl;
-            }
-            
         }
 
         // send last info string for full search again,
