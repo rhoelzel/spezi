@@ -369,7 +369,7 @@ namespace spezi
 
     void UCI::winc(int const milliseconds)
     {   
-        goParameters.wtime = milliseconds;
+        goParameters.winc = milliseconds;
     }
 
     void UCI::binc(int const milliseconds)

@@ -693,8 +693,10 @@ namespace spezi
 
     void Position::evaluate(int const depth)
     {  
-        if(checkAbortingConditions())
+        if(maxDepth > 1 && checkAbortingConditions())
         {
+            // do not abort for maxDepth 1 - we need to report a best move
+            // in order to satisfy UCI - rather lose on time
             return;
         }
 
