@@ -854,11 +854,12 @@ namespace spezi
         auto constexpr minimalFullMovesToLookBack = 2;
         auto const thisMoveIndex = historyIndex(fullMoves, sideToMove);
         auto maximalFullMovesToLookBack = halfMoves / 2;
+        auto repetitionCounter = 0;
         for(auto fullMovesToLookBack = minimalFullMovesToLookBack; 
             fullMovesToLookBack <= maximalFullMovesToLookBack;
             ++fullMovesToLookBack)
         {
-            if(history[thisMoveIndex - fullMovesToLookBack * 2] == zKey)
+            if(history[thisMoveIndex - fullMovesToLookBack * 2] == zKey && ++repetitionCounter == 2)
             {
                 return true;
             }
