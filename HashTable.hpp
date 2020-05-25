@@ -46,15 +46,15 @@ namespace spezi
         // bits 44-63:  score 
         static auto constexpr SCORE_MASK                = 0xFFFFF00000000000; 
 
-        HashEntry() = default;
+        constexpr HashEntry() = default;
 
-        HashEntry(HashEntry const & other) = default;
-        HashEntry(HashEntry && other) = default;
+        constexpr HashEntry(HashEntry const & other) = default;
+        constexpr HashEntry(HashEntry && other) = default;
 
         HashEntry & operator=(HashEntry const & other) = default;
         HashEntry & operator=(HashEntry && other) = default;
 
-        HashEntry(HashEntryType const hashEntryType, ZKey const zKey, int const draft, MilliSquare const score)
+        constexpr HashEntry(HashEntryType const hashEntryType, ZKey const zKey, int const draft, MilliSquare const score)
         : zKey(zKey)
         {
             move |= static_cast<uint_fast64_t>(draft + (1 << 6))<<ffs(DRAFT_MASK);
@@ -62,7 +62,7 @@ namespace spezi
             move |= static_cast<uint_fast64_t>(score + (1 << 19))<<ffs(SCORE_MASK);
         }
 
-        HashEntry(HashEntryType const hashEntryType,
+        constexpr HashEntry(HashEntryType const hashEntryType,
             ZKey const zKey,
             int const draft,
             MilliSquare const score,

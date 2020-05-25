@@ -1,5 +1,7 @@
 #include "Position.hpp"
 
+#include "OpeningBook.hpp"
+
 #include <algorithm>
 #include <array>
 #include <iomanip>
@@ -567,6 +569,11 @@ namespace spezi
             sideToMove == WHITE ? MilliSeconds{evaluationParameters.winc} : MilliSeconds{evaluationParameters.binc},
             MilliSeconds{evaluationParameters.movetime},
             fullMoves - 1);
+
+        if(foundPositionInOpeningBook())
+        {
+            return EvaluationStatistics{};
+        }
 
         interruptState = Busy;
 
@@ -1838,5 +1845,23 @@ namespace spezi
         fullMoves += sideToMove;
         sideToMove = static_cast<Color>(sideToMove ^ BLACK);
         zKey ^= BlackToMoveKey;
+    }
+
+    bool Position::foundPositionInOpeningBook()
+    {
+        auto const randomIndex = std::chrono::duration_cast<std::chrono::microseconds>(evaluationTargetTimePoint.time_since_epoch()).count() % 5; 
+        if(randomIndex == 4)
+        {
+            return false; // do not use opening book
+        }                
+
+        auto const iter = OpeningBook.find(zKey);
+        if(iter == OpeningBook.end())
+        {
+            return false;
+        }
+
+        engineToGuiOutputFunction("bestmove " + iter->second[randomIndex]);
+        return true;
     }
 }

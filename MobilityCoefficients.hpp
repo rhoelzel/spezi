@@ -4,7 +4,7 @@ namespace spezi::detail
 {
     int constexpr NumberOfPolyCoeffs = 5;
 
-    constexpr std::array<double, NumberOfPieceTypes * NumberOfSquares * NumberOfPolyCoeffs>
+    std::array<double, NumberOfPieceTypes * NumberOfSquares * NumberOfPolyCoeffs> constexpr
     MobilityCoefficients
  {
 	-9.82059349320324e-08, -2.63580620548315e-07, 0.000165991533311075, -0.0417968095519911, 1.24099233419645, 

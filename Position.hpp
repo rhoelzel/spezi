@@ -45,7 +45,7 @@ namespace spezi
         float seconds;
     };
 
-    constexpr char startingFen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    constexpr char STARTING_FEN[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     class Position
     {
@@ -56,6 +56,7 @@ namespace spezi
         Position(Position && other) = delete;
 
         void setFen(std::string fen);
+        void makeMove(std::string const & uciNotation);
         void makeMoves(std::vector<std::string>::const_iterator begin,
                                 std::vector<std::string>::const_iterator end);
         void setHashTableSize(unsigned int megaByte);
@@ -109,7 +110,7 @@ namespace spezi
 
         void sendInfo();
 
-        void makeMove(std::string const & uciNotation);
+        bool foundPositionInOpeningBook();
 
         BitBoard empty = A3|B3|C3|D3|E3|F3|G3|H3|A4|B4|C4|D4|E4|F4|G4|H4
                         |A5|B5|C5|D5|E5|F5|G5|H5|A6|B6|C6|D6|E6|F6|G6|H6;

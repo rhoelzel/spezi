@@ -63,7 +63,7 @@ namespace spezi
             // private fields
             bool debugging {false};
             
-            Position p {startingFen, writeCommandToGui};
+            Position p {STARTING_FEN, writeCommandToGui};
            
             EvaluationParameters goParameters;
             

@@ -154,7 +154,7 @@ namespace spezi
 
             if(*iter == "startpos")
             {
-                positionAsFen = startingFen;                
+                positionAsFen = STARTING_FEN;                
             }            
             else if(*iter == "fen" && args.size() >= numberOfToken + 8)
             {
