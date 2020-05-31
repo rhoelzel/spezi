@@ -913,17 +913,29 @@ namespace spezi
         return (whitePieces - blackPieces) * PawnUnit + (whiteCenter - blackCenter) * PawnUnit / 3 + (whiteExtendedCenter - blackExtendedCenter) * PawnUnit / 9;
     }
 
+        
+
     MilliSquare Position::evaluateStatically() const
     {
         auto const p = populationIndex(popcount(~empty));
-        auto value = StaticMobilities<WHITE, KING>[ffs(allPieces[WHITE] & individualPieces[KING])][p];
-        value -= StaticMobilities<BLACK, KING>[ffs(allPieces[BLACK] & individualPieces[KING])][p];
-
-        value += staticPieceEvaluation<WHITE, QUEEN>(allPieces[WHITE] & individualPieces[QUEEN], p);
-        value -= staticPieceEvaluation<BLACK, QUEEN>(allPieces[BLACK] & individualPieces[QUEEN], p);
         
-        value += staticPieceEvaluation<WHITE, ROOK>(allPieces[WHITE] & individualPieces[ROOK], p);
-        value -= staticPieceEvaluation<BLACK, ROOK>(allPieces[BLACK] & individualPieces[ROOK], p);
+        auto const kingSafetyMultiplier = 16 - p;
+
+        // invert king mobility early in the game
+        auto value = (StaticMobilities<WHITE, KING>[ffs(allPieces[WHITE] & individualPieces[KING])][p] >> 4) * kingSafetyMultiplier;
+        value -= (StaticMobilities<BLACK, KING>[ffs(allPieces[BLACK] & individualPieces[KING])][p] >> 4) * kingSafetyMultiplier;
+
+        // do not move the queen out quite so aggressively in the opening
+        auto const whiteQueens = allPieces[WHITE] & individualPieces[QUEEN];
+        auto const blackQueens = allPieces[BLACK] & individualPieces[QUEEN];
+        value += (staticPieceEvaluation<WHITE, QUEEN>(whiteQueens, p) * (64 - p) + (p << 3) * PawnUnit * popcount(whiteQueens)) >> 6;
+        value -= (staticPieceEvaluation<BLACK, QUEEN>(blackQueens, p) * (64 - p) + (p << 3) * PawnUnit * popcount(blackQueens)) >> 6;
+        
+        // rooks are apparently undervalued by static mobilities
+        auto const whiteRooks = allPieces[WHITE] & individualPieces[ROOK];
+        auto const blackRooks = allPieces[BLACK] & individualPieces[ROOK];
+        value += staticPieceEvaluation<WHITE, ROOK>(whiteRooks, p) + (PawnUnit * popcount(whiteRooks) >> 2);
+        value -= staticPieceEvaluation<BLACK, ROOK>(blackRooks, p) + (PawnUnit * popcount(blackRooks) >> 2);
         
         value += staticPieceEvaluation<WHITE, BISHOP>(allPieces[WHITE] & individualPieces[BISHOP], p);
         value -= staticPieceEvaluation<BLACK, BISHOP>(allPieces[BLACK] & individualPieces[BISHOP], p);
@@ -931,8 +943,42 @@ namespace spezi
         value += staticPieceEvaluation<WHITE, KNIGHT>(allPieces[WHITE] & individualPieces[KNIGHT], p);
         value -= staticPieceEvaluation<BLACK, KNIGHT>(allPieces[BLACK] & individualPieces[KNIGHT], p);
        
-        value += staticPieceEvaluation<WHITE, PAWN>(allPieces[WHITE] & individualPieces[PAWN], p);
-        value -= staticPieceEvaluation<BLACK, PAWN>(allPieces[BLACK] & individualPieces[PAWN], p);
+        auto const whitePawns = allPieces[WHITE] & individualPieces[PAWN];
+        auto const blackPawns = allPieces[BLACK] & individualPieces[PAWN];
+
+        value += staticPieceEvaluation<WHITE, PAWN>(whitePawns, p);
+        value -= staticPieceEvaluation<BLACK, PAWN>(blackPawns, p);
+
+        // invest some effort to free both bishops in the opening
+        auto constexpr whiteBishopPrison1 = B2 | D2;
+        auto constexpr blackBishopPrison1 = B7 | D7;
+        auto constexpr whiteBishopPrison2 = E2 | G2;
+        auto constexpr blackBishopPrison2 = E7 | G7;
+
+        value -= (whiteBishopPrison1 & whitePawns) == whiteBishopPrison1 ? PawnUnit * 3 / 4 : 0; 
+        value -= (whiteBishopPrison2 & whitePawns) == whiteBishopPrison2 ? PawnUnit * 3 / 4 : 0; 
+        value += (blackBishopPrison1 & blackPawns) == blackBishopPrison1 ? PawnUnit * 3 / 4 : 0; 
+        value += (blackBishopPrison2 & blackPawns) == blackBishopPrison2 ? PawnUnit * 3 / 4 : 0; 
+
+        /*
+        // discourage multiple pawn islands and doubled/tripled/etc. pawns
+        // auto wN = whitePawns; wN |= (wN <<  8); wN |= (wN << 16); wN |= (wN << 32);
+        // auto bN = blackPawns; bN |= (bN <<  8); bN |= (bN << 16); bN |= (bN << 32);
+        auto wS = whitePawns; wS |= (wS >>  8); wS |= (wS >> 16); wS |= (wS >> 32);
+        auto bS = blackPawns; bS |= (bS >>  8); bS |= (bS >> 16); bS |= (bS >> 32);
+
+        auto const wF = static_cast<unsigned char>(wS);
+        auto const bF = static_cast<unsigned char>(bS);
+        // subtract 1/4 Pawn Unit for each pawn island and/or doubled pawn
+        // but also award 1/8 extra value for each pawn, so pawns as a whole are not devalued
+        // => with 2 islands and 2 doubled pawns with 8 total pawns, we are exactly at value 0
+        // same for 2 islands but no doubled pawns with 4 total pawns:
+        // + 1/8 pawn unit * ( # white pawns - # black pawns ) 
+        // + 1/4 pawn unit * ( # files with white pawns - # white pawns - #files with black pawns + # black pawns)
+        // + 1/4 pawn unit * ( # black pawn islands - # white pawn islands)
+        // = 1/8 pawn unit * ( # black pawns - # white pawns) + 1/4 pawn unit * ( # files with white pawns - # files with black pawns + # black pawn islands - # white pawn islands )   
+        value += PawnUnit >> 3 * ( popcount(whitePawns) - popcount(whitePawns) + ((popcount(wF) - popcount(bF) + popcount(bF & ~(bF >> 1)) - popcount(wF & ~(wF >> 1)) ) << 1));
+        */
        
         return value;
     }
